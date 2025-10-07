@@ -18,7 +18,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const handleMessage = useCallback((event: MessageEvent) => {
     try {
       const message = JSON.parse(event.data);
-      console.log('Received message:', message);
+      console.log('Received message from ESP32:', message);
       
       setAppState((prevState: AppState) => {
         const newState = { ...prevState };
@@ -39,6 +39,8 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             };
             newState.isConnected = true;
             newState.error = null;
+            // Reset connection attempts on successful data reception
+            setReconnectAttempts(0);
             break;
           case 'status':
             // Handle status updates from ESP32
@@ -50,25 +52,27 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             };
             newState.isConnected = true;
             newState.error = null;
+            // Reset connection attempts on successful status update
+            setReconnectAttempts(0);
             break;
           case 'error':
-            newState.error = message.data || 'Unknown error';
+            newState.error = message.data || 'Unknown error from ESP32';
             break;
           default:
-            console.log('Unknown message type:', message.type);
+            console.log('Unknown message type from ESP32:', message.type);
         }
         
         return newState;
       });
     } catch (error) {
-      console.error('Error parsing WebSocket message:', error);
-      setAppState((prev: AppState) => ({ ...prev, error: 'Failed to parse server message' }));
+      console.error('Error parsing WebSocket message from ESP32:', error);
+      setAppState((prev: AppState) => ({ ...prev, error: 'Failed to parse ESP32 message' }));
     }
   }, []);
 
   // Handle WebSocket connection events
   const handleOpen = useCallback(() => {
-    console.log('WebSocket connected');
+    console.log('WebSocket connected to ESP32');
     setAppState((prev: AppState) => ({ 
       ...prev, 
       isConnected: true, 
@@ -80,7 +84,15 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       clearInterval(reconnectInterval);
       setReconnectInterval(null);
     }
-  }, [reconnectInterval]);
+    
+    // Request initial data from ESP32
+    setTimeout(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        console.log('Requesting initial data from ESP32...');
+        ws.send(JSON.stringify({ command: 'getData' }));
+      }
+    }, 1000);
+  }, [reconnectInterval, ws]);
 
   const handleError = useCallback((error: Event) => {
     console.error('WebSocket error:', error);
