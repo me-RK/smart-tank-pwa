@@ -50,8 +50,11 @@ export interface SystemStatus {
 }
 
 export interface WebSocketMessage {
-  type: 'status' | 'settings' | 'tankData' | 'error';
-  data: SystemStatus | SystemSettings | TankData | string;
+  type: 'status' | 'settings' | 'tankData' | 'error' | 'sync' | 'motorControl' | 'updateSettings';
+  data?: SystemStatus | SystemSettings | TankData | string;
+  timestamp?: string;
+  motorOn?: boolean;
+  settings?: SystemSettings;
 }
 
 export interface AppState {
