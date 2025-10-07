@@ -57,7 +57,7 @@ This guide will help you deploy your Smart Water Tank PWA to GitHub Pages so it 
 #### Option A: Automatic Deployment (Recommended)
 - Simply push to the `main` branch
 - GitHub Actions will automatically build and deploy your app
-- Your app will be available at: `https://YOUR_USERNAME.github.io/`
+- Your app will be available at: `https://YOUR_USERNAME.github.io/smart-tank-pwa/`
 
 #### Option B: Manual Deployment
 ```bash
@@ -67,7 +67,7 @@ npm run deploy
 ### 5. Access Your PWA
 
 Once deployed, your PWA will be available at:
-`https://YOUR_USERNAME.github.io/`
+`https://YOUR_USERNAME.github.io/smart-tank-pwa/`
 
 ## PWA Features
 

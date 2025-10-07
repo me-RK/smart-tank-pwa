@@ -7,7 +7,7 @@ import './App.css';
 function App() {
   return (
     <WebSocketProvider>
-      <Router>
+      <Router basename="/smart-tank-pwa">
         <div className="App">
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
