@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import type { AppState, SystemStatus, SystemSettings, TankData, WebSocketMessage } from '../types';
+import { initialAppState } from './WebSocketUtils';
 
 interface WebSocketContextType {
   appState: AppState;
-  sendMessage: (message: any) => void;
+  sendMessage: (message: WebSocketMessage) => void;
   connect: (host: string) => void;
   disconnect: () => void;
   isConnected: boolean;
@@ -12,45 +13,6 @@ interface WebSocketContextType {
 
 const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);
 
-const initialAppState: AppState = {
-  systemStatus: {
-    connected: false,
-    lastUpdated: new Date().toISOString(),
-    runtime: 0,
-    motorStatus: 'OFF',
-    mode: 'auto',
-    autoModeReasons: []
-  },
-  systemSettings: {
-    mode: 'auto',
-    autoMode: {
-      minWaterLevel: 20,
-      maxWaterLevel: 80,
-      specialFunctions: {
-        autoMode: true
-      }
-    },
-    manualMode: {
-      motorControl: false
-    },
-    sensors: {
-      lowerTankA: true,
-      lowerTankB: true,
-      upperTankA: true,
-      upperTankB: true
-    }
-  },
-  tankData: {
-    tankA: { upper: 0, lower: 0 },
-    tankB: { upper: 0, lower: 0 },
-    dimensions: {
-      upper: { height: 100, waterFullHeight: 90, waterEmptyHeight: 10 },
-      lower: { height: 100, waterFullHeight: 90, waterEmptyHeight: 10 }
-    }
-  },
-  isConnected: false,
-  error: null
-};
 
 export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [appState, setAppState] = useState<AppState>(initialAppState);
@@ -181,7 +143,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, [ws, reconnectInterval]);
 
   // Send message through WebSocket
-  const sendMessage = useCallback((message: any) => {
+  const sendMessage = useCallback((message: WebSocketMessage) => {
     if (ws && ws.readyState === WebSocket.OPEN) {
       try {
         ws.send(JSON.stringify(message));
@@ -216,7 +178,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         ws.close();
       }
     };
-  }, []);
+  }, [connect, reconnectInterval, ws]);
 
   // Cleanup on unmount
   useEffect(() => {

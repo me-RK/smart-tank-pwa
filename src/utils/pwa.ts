@@ -64,7 +64,7 @@ export const showNotification = (title: string, options?: NotificationOptions): 
 
 export const isPWA = (): boolean => {
   return window.matchMedia('(display-mode: standalone)').matches ||
-         (window.navigator as any).standalone === true ||
+         (window.navigator as { standalone?: boolean }).standalone === true ||
          document.referrer.includes('android-app://');
 };
 

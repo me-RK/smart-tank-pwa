@@ -96,7 +96,7 @@ export const Settings: React.FC = () => {
         setSaveStatus('success');
         setTimeout(() => setSaveStatus('idle'), 3000);
       }, 1000);
-    } catch (error) {
+    } catch {
       setIsSaving(false);
       setSaveStatus('error');
     }
