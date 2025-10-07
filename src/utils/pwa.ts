@@ -47,9 +47,13 @@ export const showNotification = (title: string, options?: NotificationOptions): 
     const notification = new Notification(title, {
       icon: '/icon-192.png',
       badge: '/icon-192.png',
-      vibrate: [200, 100, 200],
       ...options
     });
+    
+    // Use Web Vibration API if available
+    if ('vibrate' in navigator) {
+      navigator.vibrate([200, 100, 200]);
+    }
     
     notification.onclick = () => {
       window.focus();

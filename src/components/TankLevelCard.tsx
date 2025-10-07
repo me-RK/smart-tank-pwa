@@ -1,5 +1,5 @@
 import React from 'react';
-import { Droplets, Gauge } from 'lucide-react';
+import { Droplets } from 'lucide-react';
 
 interface TankLevelCardProps {
   tankName: string;

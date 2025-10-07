@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { AppState, SystemStatus, SystemSettings, TankData, WebSocketMessage } from '../types';
+import type { AppState, SystemStatus, SystemSettings, TankData, WebSocketMessage } from '../types';
 
 interface WebSocketContextType {
   appState: AppState;
