@@ -9,8 +9,8 @@ const STATIC_ASSETS = [
   '/dashboard',
   '/settings',
   '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png'
+  '/icon.svg',
+  '/vite.svg'
 ];
 
 // Install event - cache static assets
@@ -132,8 +132,8 @@ self.addEventListener('push', (event) => {
   
   const options = {
     body: event.data ? event.data.text() : 'New tank alert',
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
+    icon: '/icon.svg',
+    badge: '/icon.svg',
     vibrate: [200, 100, 200],
     data: {
       dateOfArrival: Date.now(),
@@ -143,12 +143,12 @@ self.addEventListener('push', (event) => {
       {
         action: 'explore',
         title: 'View Dashboard',
-        icon: '/icon-192.png'
+        icon: '/icon.svg'
       },
       {
         action: 'close',
         title: 'Close',
-        icon: '/icon-192.png'
+        icon: '/icon.svg'
       }
     ]
   };
