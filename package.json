@@ -6,9 +6,13 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:check": "tsc --noEmit",
     "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "preview": "vite preview",
-    "deploy": "npm run build && gh-pages -d dist"
+    "deploy": "npm run build && gh-pages -d dist",
+    "clean": "rm -rf dist",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "lucide-react": "^0.545.0",
@@ -32,9 +36,6 @@
     "tailwindcss": "^3.4.14",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.45.0",
-    "vite": "npm:rolldown-vite@7.1.14"
-  },
-  "overrides": {
-    "vite": "npm:rolldown-vite@7.1.14"
+    "vite": "^5.4.10"
   }
 }

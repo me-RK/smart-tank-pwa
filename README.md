@@ -146,17 +146,37 @@ npm run deploy
 
 ## 🌐 Deployment
 
-### GitHub Pages
+### GitHub Pages (Recommended)
 The app is configured for automatic deployment to GitHub Pages:
 
+#### Automatic Deployment
 1. **Push to main branch**: Automatic deployment via GitHub Actions
-2. **Manual deployment**: `npm run deploy`
-3. **Access URL**: `https://username.github.io/smart-tank-pwa/`
+2. **Access URL**: `https://yourusername.github.io/smart-tank-pwa/`
+
+#### Manual Deployment
+```bash
+# Build and deploy manually
+npm run deploy
+```
+
+#### GitHub Pages Setup
+1. Go to your repository **Settings**
+2. Navigate to **Pages** section
+3. Set **Source** to "GitHub Actions"
+4. The workflow will automatically deploy on push to main
 
 ### Configuration
 - **Base Path**: `/smart-tank-pwa/` (configured in `vite.config.ts`)
 - **Service Worker**: Automatic registration and caching
 - **PWA Manifest**: Complete manifest for app installation
+- **Node.js Version**: 20 (specified in `.nvmrc`)
+
+### Troubleshooting Deployment
+If deployment fails:
+1. Check GitHub Actions logs for specific errors
+2. Ensure all dependencies are properly specified in `package.json`
+3. Verify the base path matches your repository name
+4. Check that GitHub Pages is enabled in repository settings
 
 ## 📱 PWA Installation
 
