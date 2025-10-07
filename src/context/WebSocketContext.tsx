@@ -11,32 +11,52 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const [reconnectInterval, setReconnectInterval] = useState<NodeJS.Timeout | null>(null);
 
-  const maxReconnectAttempts = 5;
-  const reconnectDelay = 3000;
+  const maxReconnectAttempts = 10;
+  const reconnectDelay = 2000;
+  const reconnectBackoff = 1.5;
 
   // Parse incoming WebSocket messages
   const handleMessage = useCallback((event: MessageEvent) => {
     try {
-      const message: WebSocketMessage = JSON.parse(event.data);
+      const message = JSON.parse(event.data);
+      console.log('Received message:', message);
       
       setAppState((prevState: AppState) => {
         const newState = { ...prevState };
         
         switch (message.type) {
-          case 'status':
-            newState.systemStatus = { ...message.data as SystemStatus, connected: true };
+          case 'sensorData':
+            // Handle sensor data from ESP32
+            newState.tankData = {
+              ...prevState.tankData,
+              tankA: {
+                upper: message.sensorA || 0,
+                lower: message.sensorA || 0
+              },
+              tankB: {
+                upper: message.sensorB || 0,
+                lower: message.sensorB || 0
+              }
+            };
             newState.isConnected = true;
             newState.error = null;
             break;
-          case 'settings':
-            newState.systemSettings = message.data as SystemSettings;
-            break;
-          case 'tankData':
-            newState.tankData = message.data as TankData;
+          case 'status':
+            // Handle status updates from ESP32
+            newState.systemStatus = {
+              ...prevState.systemStatus,
+              connected: true,
+              motorStatus: message.pump1Enabled || message.pump2Enabled ? 'ON' : 'OFF',
+              lastUpdated: new Date().toISOString()
+            };
+            newState.isConnected = true;
+            newState.error = null;
             break;
           case 'error':
-            newState.error = message.data as string;
+            newState.error = message.data || 'Unknown error';
             break;
+          default:
+            console.log('Unknown message type:', message.type);
         }
         
         return newState;
@@ -63,25 +83,34 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   }, [reconnectInterval]);
 
-  const handleClose = useCallback(() => {
-    console.log('WebSocket disconnected');
+  const handleClose = useCallback((event: CloseEvent) => {
+    console.log('WebSocket disconnected:', event.code, event.reason);
     setAppState((prev: AppState) => ({ 
       ...prev, 
       isConnected: false,
       systemStatus: { ...prev.systemStatus, connected: false }
     }));
     
-    // Attempt to reconnect if not manually disconnected
-    if (reconnectAttempts < maxReconnectAttempts) {
+    // Attempt to reconnect if not manually disconnected and not a clean close
+    if (reconnectAttempts < maxReconnectAttempts && event.code !== 1000) {
+      const delay = Math.min(reconnectDelay * Math.pow(reconnectBackoff, reconnectAttempts), 30000);
+      console.log(`Attempting to reconnect in ${delay}ms (attempt ${reconnectAttempts + 1}/${maxReconnectAttempts})`);
+      
       const interval = setTimeout(() => {
         setReconnectAttempts(prev => prev + 1);
-        if (ws) {
-          ws.close();
+        const storedHost = localStorage.getItem('tankHost');
+        if (storedHost) {
+          connect(storedHost);
         }
-      }, reconnectDelay);
+      }, delay);
       setReconnectInterval(interval);
+    } else if (reconnectAttempts >= maxReconnectAttempts) {
+      setAppState((prev: AppState) => ({ 
+        ...prev, 
+        error: 'Failed to reconnect after multiple attempts. Please check your connection and try again.'
+      }));
     }
-  }, [reconnectAttempts, ws]);
+  }, [reconnectAttempts, connect]);
 
   const handleError = useCallback((error: Event) => {
     console.error('WebSocket error:', error);
@@ -98,7 +127,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       // Store host in localStorage for persistence
       localStorage.setItem('tankHost', host);
       
-      const wsUrl = `ws://${host}:1337`;
+      const wsUrl = `ws://${host}:81`;
       const newWs = new WebSocket(wsUrl);
       
       newWs.onopen = handleOpen;
@@ -137,7 +166,32 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const sendMessage = useCallback((message: WebSocketMessage) => {
     if (ws && ws.readyState === WebSocket.OPEN) {
       try {
-        ws.send(JSON.stringify(message));
+        // Convert PWA message format to ESP32 format
+        let esp32Message;
+        
+        switch (message.type) {
+          case 'motorControl':
+            esp32Message = {
+              command: message.motorOn ? 'togglePump1' : 'togglePump1'
+            };
+            break;
+          case 'updateSettings':
+            // Handle settings updates
+            if (message.settings) {
+              esp32Message = {
+                command: 'setDelayA',
+                value: 1000 // Default delay
+              };
+            }
+            break;
+          default:
+            esp32Message = {
+              command: 'getData'
+            };
+        }
+        
+        console.log('Sending message to ESP32:', esp32Message);
+        ws.send(JSON.stringify(esp32Message));
       } catch (error) {
         console.error('Failed to send message:', error);
         setAppState((prev: AppState) => ({ 

@@ -173,6 +173,26 @@ export const Dashboard: React.FC = () => {
           </div>
         )}
 
+        {/* Connection Status */}
+        {!isConnected && (
+          <div className="mt-6 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <WifiOff className="w-5 h-5 text-yellow-600" />
+                <span className="text-sm text-yellow-700 dark:text-yellow-300 font-medium">
+                  Not connected to ESP32 device
+                </span>
+              </div>
+              <button
+                onClick={handleConnect}
+                className="px-3 py-1 bg-yellow-500 hover:bg-yellow-600 text-white text-sm rounded-md transition-colors"
+              >
+                Connect
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Error Display */}
         {appState.error && (
           <div className="mt-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">

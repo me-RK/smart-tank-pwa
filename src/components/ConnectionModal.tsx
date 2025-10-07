@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { X, Wifi, AlertCircle } from 'lucide-react';
+import { X, Wifi, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
+import { testConnection } from '../utils/connectionTest';
 
 interface ConnectionModalProps {
   isOpen: boolean;
@@ -16,6 +17,32 @@ export const ConnectionModal: React.FC<ConnectionModalProps> = ({
 }) => {
   const [host, setHost] = useState(currentHost);
   const [error, setError] = useState('');
+  const [isTesting, setIsTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const handleTestConnection = async () => {
+    if (!host.trim()) {
+      setError('Please enter a host address first');
+      return;
+    }
+
+    setIsTesting(true);
+    setTestResult(null);
+    setError('');
+
+    try {
+      const result = await testConnection(host.trim());
+      if (result.success) {
+        setTestResult({ success: true, message: 'Connection successful!' });
+      } else {
+        setTestResult({ success: false, message: result.error || 'Connection failed' });
+      }
+    } catch (error) {
+      setTestResult({ success: false, message: 'Test failed' });
+    } finally {
+      setIsTesting(false);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,15 +118,59 @@ export const ConnectionModal: React.FC<ConnectionModalProps> = ({
             )}
           </div>
 
+          {/* Test Connection Button */}
+          <div className="mb-4">
+            <button
+              type="button"
+              onClick={handleTestConnection}
+              disabled={isTesting || !host.trim()}
+              className="
+                w-full px-4 py-2 border border-gray-300 dark:border-gray-600
+                text-gray-700 dark:text-gray-300 rounded-lg
+                hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors
+                disabled:opacity-50 disabled:cursor-not-allowed
+                flex items-center justify-center space-x-2
+              "
+            >
+              {isTesting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Testing Connection...</span>
+                </>
+              ) : (
+                <>
+                  <Wifi className="w-4 h-4" />
+                  <span>Test Connection</span>
+                </>
+              )}
+            </button>
+            
+            {testResult && (
+              <div className={`mt-2 p-3 rounded-lg flex items-center space-x-2 ${
+                testResult.success 
+                  ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' 
+                  : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300'
+              }`}>
+                {testResult.success ? (
+                  <CheckCircle className="w-4 h-4" />
+                ) : (
+                  <AlertCircle className="w-4 h-4" />
+                )}
+                <span className="text-sm font-medium">{testResult.message}</span>
+              </div>
+            )}
+          </div>
+
           <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 mb-6">
             <div className="flex items-start space-x-2">
               <AlertCircle className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
               <div className="text-sm text-blue-700 dark:text-blue-300">
                 <p className="font-medium mb-1">Connection Info:</p>
                 <ul className="space-y-1 text-xs">
-                  <li>• Enter the IP address or hostname of your tank system</li>
-                  <li>• The system will connect to port 1337 automatically</li>
-                  <li>• Make sure the tank system is running and accessible</li>
+                  <li>• Enter the IP address or hostname of your ESP32</li>
+                  <li>• The system will connect to port 81 automatically</li>
+                  <li>• Make sure the ESP32 is running and accessible</li>
+                  <li>• Example: 192.168.1.100 or tank.local</li>
                 </ul>
               </div>
             </div>
