@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useWebSocket } from '../context/WebSocketContext';
+import { useWebSocket } from '../context/useWebSocket';
 import { ToggleSwitch } from '../components/ToggleSwitch';
 import { SensorCheckbox } from '../components/SensorCheckbox';
 import { ArrowLeft, Save, RotateCcw, AlertCircle, CheckCircle } from 'lucide-react';

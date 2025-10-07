@@ -1,17 +1,7 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import type { AppState, SystemStatus, SystemSettings, TankData, WebSocketMessage } from '../types';
+import React, { useEffect, useState, useCallback } from 'react';
+import type { SystemStatus, SystemSettings, TankData, WebSocketMessage } from '../types';
 import { initialAppState } from './WebSocketUtils';
-
-interface WebSocketContextType {
-  appState: AppState;
-  sendMessage: (message: WebSocketMessage) => void;
-  connect: (host: string) => void;
-  disconnect: () => void;
-  isConnected: boolean;
-  error: string | null;
-}
-
-const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);
+import { WebSocketContext } from './WebSocketContextDefinition';
 
 
 export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -208,11 +198,3 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   );
 };
 
-// Custom hook to use WebSocket context
-export const useWebSocket = (): WebSocketContextType => {
-  const context = useContext(WebSocketContext);
-  if (context === undefined) {
-    throw new Error('useWebSocket must be used within a WebSocketProvider');
-  }
-  return context;
-};
