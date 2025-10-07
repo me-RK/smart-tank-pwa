@@ -56,7 +56,7 @@ export const testConnection = async (host: string, port: number = 81): Promise<C
         });
       };
 
-      ws.onerror = (error) => {
+      ws.onerror = () => {
         clearTimeout(timeout);
         resolve({
           success: false,
@@ -112,7 +112,7 @@ export const testHttpConnection = async (host: string, port: number = 80): Promi
   const httpUrl = `http://${host}:${port}`;
   
   try {
-    const response = await fetch(httpUrl, {
+    await fetch(httpUrl, {
       method: 'GET',
       mode: 'no-cors',
       cache: 'no-cache'

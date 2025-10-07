@@ -1,9 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import type { SystemStatus, SystemSettings, TankData, WebSocketMessage, AppState } from '../types';
+import type { WebSocketMessage, AppState } from '../types';
 import { initialAppState } from './WebSocketUtils';
 import { WebSocketContext } from './WebSocketContextDefinition';
 import type { WebSocketContextType } from './WebSocketContextDefinition';
-
 
 export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [appState, setAppState] = useState<AppState>(initialAppState);
@@ -83,35 +82,6 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   }, [reconnectInterval]);
 
-  const handleClose = useCallback((event: CloseEvent) => {
-    console.log('WebSocket disconnected:', event.code, event.reason);
-    setAppState((prev: AppState) => ({ 
-      ...prev, 
-      isConnected: false,
-      systemStatus: { ...prev.systemStatus, connected: false }
-    }));
-    
-    // Attempt to reconnect if not manually disconnected and not a clean close
-    if (reconnectAttempts < maxReconnectAttempts && event.code !== 1000) {
-      const delay = Math.min(reconnectDelay * Math.pow(reconnectBackoff, reconnectAttempts), 30000);
-      console.log(`Attempting to reconnect in ${delay}ms (attempt ${reconnectAttempts + 1}/${maxReconnectAttempts})`);
-      
-      const interval = setTimeout(() => {
-        setReconnectAttempts(prev => prev + 1);
-        const storedHost = localStorage.getItem('tankHost');
-        if (storedHost) {
-          connect(storedHost);
-        }
-      }, delay);
-      setReconnectInterval(interval);
-    } else if (reconnectAttempts >= maxReconnectAttempts) {
-      setAppState((prev: AppState) => ({ 
-        ...prev, 
-        error: 'Failed to reconnect after multiple attempts. Please check your connection and try again.'
-      }));
-    }
-  }, [reconnectAttempts, connect]);
-
   const handleError = useCallback((error: Event) => {
     console.error('WebSocket error:', error);
     setAppState((prev: AppState) => ({ 
@@ -131,7 +101,34 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const newWs = new WebSocket(wsUrl);
       
       newWs.onopen = handleOpen;
-      newWs.onclose = handleClose;
+      newWs.onclose = (event: CloseEvent) => {
+        console.log('WebSocket disconnected:', event.code, event.reason);
+        setAppState((prev: AppState) => ({ 
+          ...prev, 
+          isConnected: false,
+          systemStatus: { ...prev.systemStatus, connected: false }
+        }));
+        
+        // Attempt to reconnect if not manually disconnected and not a clean close
+        if (reconnectAttempts < maxReconnectAttempts && event.code !== 1000) {
+          const delay = Math.min(reconnectDelay * Math.pow(reconnectBackoff, reconnectAttempts), 30000);
+          console.log(`Attempting to reconnect in ${delay}ms (attempt ${reconnectAttempts + 1}/${maxReconnectAttempts})`);
+          
+          const interval = setTimeout(() => {
+            setReconnectAttempts(prev => prev + 1);
+            const storedHost = localStorage.getItem('tankHost');
+            if (storedHost) {
+              connect(storedHost);
+            }
+          }, delay);
+          setReconnectInterval(interval);
+        } else if (reconnectAttempts >= maxReconnectAttempts) {
+          setAppState((prev: AppState) => ({ 
+            ...prev, 
+            error: 'Failed to reconnect after multiple attempts. Please check your connection and try again.'
+          }));
+        }
+      };
       newWs.onerror = handleError;
       newWs.onmessage = handleMessage;
       
@@ -143,7 +140,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         error: 'Failed to create WebSocket connection'
       }));
     }
-  }, [handleOpen, handleClose, handleError, handleMessage]);
+  }, [handleOpen, handleError, handleMessage, reconnectAttempts]);
 
   // Disconnect WebSocket
   const disconnect = useCallback(() => {
@@ -252,4 +249,3 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     </WebSocketContext.Provider>
   );
 };
-
