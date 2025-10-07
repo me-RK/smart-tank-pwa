@@ -1,7 +1,7 @@
 import { createContext } from 'react';
 import type { AppState, WebSocketMessage } from '../types';
 
-interface WebSocketContextType {
+export interface WebSocketContextType {
   appState: AppState;
   sendMessage: (message: WebSocketMessage) => void;
   connect: (host: string) => void;

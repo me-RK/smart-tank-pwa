@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import type { SystemStatus, SystemSettings, TankData, WebSocketMessage } from '../types';
+import type { SystemStatus, SystemSettings, TankData, WebSocketMessage, AppState } from '../types';
 import { initialAppState } from './WebSocketUtils';
 import { WebSocketContext } from './WebSocketContextDefinition';
+import type { WebSocketContextType } from './WebSocketContextDefinition';
 
 
 export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -18,7 +19,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     try {
       const message: WebSocketMessage = JSON.parse(event.data);
       
-      setAppState(prevState => {
+      setAppState((prevState: AppState) => {
         const newState = { ...prevState };
         
         switch (message.type) {
@@ -42,14 +43,14 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       });
     } catch (error) {
       console.error('Error parsing WebSocket message:', error);
-      setAppState(prev => ({ ...prev, error: 'Failed to parse server message' }));
+      setAppState((prev: AppState) => ({ ...prev, error: 'Failed to parse server message' }));
     }
   }, []);
 
   // Handle WebSocket connection events
   const handleOpen = useCallback(() => {
     console.log('WebSocket connected');
-    setAppState(prev => ({ 
+    setAppState((prev: AppState) => ({ 
       ...prev, 
       isConnected: true, 
       error: null,
@@ -64,7 +65,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const handleClose = useCallback(() => {
     console.log('WebSocket disconnected');
-    setAppState(prev => ({ 
+    setAppState((prev: AppState) => ({ 
       ...prev, 
       isConnected: false,
       systemStatus: { ...prev.systemStatus, connected: false }
@@ -84,7 +85,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const handleError = useCallback((error: Event) => {
     console.error('WebSocket error:', error);
-    setAppState(prev => ({ 
+    setAppState((prev: AppState) => ({ 
       ...prev, 
       error: 'Connection error occurred',
       isConnected: false
@@ -108,7 +109,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setWs(newWs);
     } catch (error) {
       console.error('Failed to create WebSocket connection:', error);
-      setAppState(prev => ({ 
+      setAppState((prev: AppState) => ({ 
         ...prev, 
         error: 'Failed to create WebSocket connection'
       }));
@@ -125,7 +126,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       ws.close();
       setWs(null);
     }
-    setAppState(prev => ({ 
+    setAppState((prev: AppState) => ({ 
       ...prev, 
       isConnected: false,
       systemStatus: { ...prev.systemStatus, connected: false }
@@ -139,14 +140,14 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         ws.send(JSON.stringify(message));
       } catch (error) {
         console.error('Failed to send message:', error);
-        setAppState(prev => ({ 
+        setAppState((prev: AppState) => ({ 
           ...prev, 
           error: 'Failed to send message to server'
         }));
       }
     } else {
       console.warn('WebSocket not connected');
-      setAppState(prev => ({ 
+      setAppState((prev: AppState) => ({ 
         ...prev, 
         error: 'Not connected to server'
       }));
