@@ -1,15 +1,25 @@
 {
   "name": "Smart Water Tank Monitor",
   "short_name": "WaterTank",
-  "start_url": "/",
+  "start_url": "/smart-tank-pwa/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#2563eb",
+  "description": "A Progressive Web App for monitoring smart water tank levels",
+  "orientation": "portrait",
+  "scope": "/smart-tank-pwa/",
   "icons": [
     {
-      "src": "/icon-192.png",
+      "src": "/smart-tank-pwa/icon-192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/smart-tank-pwa/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }
