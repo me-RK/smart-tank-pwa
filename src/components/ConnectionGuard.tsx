@@ -133,6 +133,28 @@ export const ConnectionGuard: React.FC<ConnectionGuardProps> = ({ children }) =>
               </div>
             )}
 
+            {/* HTTPS Mixed Content Warning */}
+            {window.location.protocol === 'https:' && (
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-4">
+                <div className="flex items-start space-x-2">
+                  <AlertTriangle className="w-5 h-5 text-yellow-500 mt-0.5" />
+                  <div>
+                    <p className="text-yellow-800 dark:text-yellow-200 font-medium">HTTPS Mixed Content Issue</p>
+                    <p className="text-yellow-600 dark:text-yellow-300 text-sm mb-2">
+                      You're accessing this app over HTTPS, but ESP32 devices typically use HTTP/WebSocket connections. 
+                      This creates a security restriction that blocks local network connections.
+                    </p>
+                    <div className="text-xs text-yellow-600 dark:text-yellow-300 space-y-1">
+                      <p><strong>Solutions:</strong></p>
+                      <p>• Use local development server: <code>npm run dev</code></p>
+                      <p>• Access via HTTP: <code>http://localhost:5173</code></p>
+                      <p>• Use ESP32 with HTTPS support (advanced)</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* App State Error */}
             {appState.error && (
               <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 mb-4">

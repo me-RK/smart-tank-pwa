@@ -109,7 +109,23 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       // Store host in localStorage for persistence
       localStorage.setItem('tankHost', host);
       
-      const wsUrl = `ws://${host}:81`;
+      // Check if we're on HTTPS and provide appropriate protocol
+      const isHttps = window.location.protocol === 'https:';
+      const wsUrl = isHttps ? `wss://${host}:81` : `ws://${host}:81`;
+      
+      console.log(`Connecting to ${wsUrl} (HTTPS: ${isHttps})`);
+      
+      // If on HTTPS and trying to connect to local network, show helpful error
+      if (isHttps && (host.startsWith('192.168.') || host.startsWith('10.') || host.startsWith('172.'))) {
+        console.warn('⚠️ HTTPS Mixed Content: Cannot connect to local network from HTTPS site');
+        setAppState((prev: AppState) => ({ 
+          ...prev, 
+          error: 'HTTPS Mixed Content: Cannot connect to local network from HTTPS site. Please use HTTP or local development server.',
+          isConnected: false
+        }));
+        return;
+      }
+      
       const newWs = new WebSocket(wsUrl);
       
       newWs.onopen = handleOpen;

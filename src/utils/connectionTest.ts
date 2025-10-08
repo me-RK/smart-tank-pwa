@@ -13,6 +13,7 @@ export interface ConnectionTestResult {
     protocol: string;
     timestamp: string;
     responseTime?: number;
+    mixedContent?: boolean;
   };
 }
 
@@ -21,9 +22,31 @@ export interface ConnectionTestResult {
  */
 export const testConnection = async (host: string, port: number = 81): Promise<ConnectionTestResult> => {
   const startTime = Date.now();
-  const wsUrl = `ws://${host}:${port}`;
+  
+  // Check if we're on HTTPS and provide appropriate protocol
+  const isHttps = window.location.protocol === 'https:';
+  const wsUrl = isHttps ? `wss://${host}:${port}` : `ws://${host}:${port}`;
   
   console.log(`Testing connection to ${wsUrl}...`);
+  
+  // If on HTTPS and trying to connect to local network, provide helpful error
+  if (isHttps && (host.startsWith('192.168.') || host.startsWith('10.') || host.startsWith('172.'))) {
+    console.log(`⚠️ HTTPS detected - Local network connections may be blocked by Mixed Content policy`);
+    return new Promise((resolve) => {
+      resolve({
+        success: false,
+        error: 'HTTPS Mixed Content: Cannot connect to local network from HTTPS site. Try accessing via HTTP or use local development server.',
+        details: {
+          host,
+          port,
+          protocol: 'WebSocket',
+          timestamp: new Date().toISOString(),
+          responseTime: Date.now() - startTime,
+          mixedContent: true
+        }
+      });
+    });
+  }
   
   return new Promise((resolve) => {
     const timeout = setTimeout(() => {
