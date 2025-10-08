@@ -6,6 +6,14 @@ interface NetworkInfoProps {
   onClose: () => void;
 }
 
+interface NetworkConnection {
+  type?: string;
+  effectiveType?: string;
+  downlink?: number;
+  rtt?: number;
+  saveData?: boolean;
+}
+
 interface NetworkDetails {
   userAgent: string;
   platform: string;
@@ -44,7 +52,9 @@ export const NetworkInfo: React.FC<NetworkInfoProps> = ({ isOpen, onClose }) => 
       const online = navigator.onLine;
       
       // Connection info (if available)
-      const connection = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
+      const connection = (navigator as Navigator & { connection?: NetworkConnection; mozConnection?: NetworkConnection; webkitConnection?: NetworkConnection }).connection || 
+                        (navigator as Navigator & { connection?: NetworkConnection; mozConnection?: NetworkConnection; webkitConnection?: NetworkConnection }).mozConnection || 
+                        (navigator as Navigator & { connection?: NetworkConnection; mozConnection?: NetworkConnection; webkitConnection?: NetworkConnection }).webkitConnection;
       
       // Current URL details
       const currentUrl = window.location.href;
@@ -107,7 +117,7 @@ export const NetworkInfo: React.FC<NetworkInfoProps> = ({ isOpen, onClose }) => 
           success: true,
           responseTime: endTime - startTime
         });
-      } catch (error) {
+      } catch {
         results.push({
           name: test.name,
           url: test.url,

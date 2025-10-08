@@ -45,7 +45,7 @@ export const ConnectionGuard: React.FC<ConnectionGuardProps> = ({ children }) =>
     } finally {
       setIsScanning(false);
     }
-  }, []);
+  }, [connect]);
 
   // Auto-scan for devices on first load
   useEffect(() => {
