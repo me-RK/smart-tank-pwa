@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useWebSocket } from '../context/useWebSocket';
 import { ConnectionModal } from './ConnectionModal';
 import { TroubleshootingGuide } from './TroubleshootingGuide';
-import { Wifi, WifiOff, AlertTriangle, RefreshCw, Settings, HelpCircle } from 'lucide-react';
+import { NetworkInfo } from './NetworkInfo';
+import { Wifi, WifiOff, AlertTriangle, RefreshCw, Settings, HelpCircle, Info } from 'lucide-react';
 import { testConnection, discoverEsp32Devices } from '../utils/connectionTest';
 
 interface ConnectionGuardProps {
@@ -17,6 +18,7 @@ export const ConnectionGuard: React.FC<ConnectionGuardProps> = ({ children }) =>
   const [connectionAttempts, setConnectionAttempts] = useState(0);
   const [lastError, setLastError] = useState<string | null>(null);
   const [showTroubleshooting, setShowTroubleshooting] = useState(false);
+  const [showNetworkInfo, setShowNetworkInfo] = useState(false);
 
   const maxConnectionAttempts = 3;
 
@@ -105,8 +107,17 @@ export const ConnectionGuard: React.FC<ConnectionGuardProps> = ({ children }) =>
                   {isScanning ? 'Scanning for devices...' : 'Not Connected'}
                 </span>
               </div>
-              <div className="text-sm text-gray-500">
-                Attempt {connectionAttempts + 1}/{maxConnectionAttempts}
+              <div className="flex items-center space-x-2">
+                <div className="text-sm text-gray-500">
+                  Attempt {connectionAttempts + 1}/{maxConnectionAttempts}
+                </div>
+                <button
+                  onClick={() => setShowNetworkInfo(true)}
+                  className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                  title="View Network Information"
+                >
+                  <Info className="w-4 h-4" />
+                </button>
               </div>
             </div>
 
@@ -215,18 +226,33 @@ export const ConnectionGuard: React.FC<ConnectionGuardProps> = ({ children }) =>
                 </button>
               )}
 
-              <button
-                onClick={() => setShowTroubleshooting(true)}
-                className="
-                  w-full px-4 py-3 border border-blue-300 dark:border-blue-600
-                  text-blue-700 dark:text-blue-300 rounded-lg
-                  hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors
-                  font-medium flex items-center justify-center space-x-2
-                "
-              >
-                <HelpCircle className="w-4 h-4" />
-                <span>Advanced Troubleshooting</span>
-              </button>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <button
+                  onClick={() => setShowTroubleshooting(true)}
+                  className="
+                    px-4 py-3 border border-blue-300 dark:border-blue-600
+                    text-blue-700 dark:text-blue-300 rounded-lg
+                    hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors
+                    font-medium flex items-center justify-center space-x-2
+                  "
+                >
+                  <HelpCircle className="w-4 h-4" />
+                  <span>Advanced Troubleshooting</span>
+                </button>
+
+                <button
+                  onClick={() => setShowNetworkInfo(true)}
+                  className="
+                    px-4 py-3 border border-green-300 dark:border-green-600
+                    text-green-700 dark:text-green-300 rounded-lg
+                    hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors
+                    font-medium flex items-center justify-center space-x-2
+                  "
+                >
+                  <Info className="w-4 h-4" />
+                  <span>Network Information</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -269,6 +295,12 @@ export const ConnectionGuard: React.FC<ConnectionGuardProps> = ({ children }) =>
               return false;
             }
           }}
+        />
+
+        {/* Network Information */}
+        <NetworkInfo
+          isOpen={showNetworkInfo}
+          onClose={() => setShowNetworkInfo(false)}
         />
       </div>
     );
