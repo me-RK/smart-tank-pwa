@@ -180,8 +180,24 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         
         switch (message.type) {
           case 'motorControl':
+            // Send pump control command based on motor state
             esp32Message = {
-              command: message.motorOn ? 'togglePump1' : 'togglePump1'
+              command: 'togglePump1'
+            };
+            break;
+          case 'pump1Control':
+            esp32Message = {
+              command: 'togglePump1'
+            };
+            break;
+          case 'pump2Control':
+            esp32Message = {
+              command: 'togglePump2'
+            };
+            break;
+          case 'systemControl':
+            esp32Message = {
+              command: 'toggleSystem'
             };
             break;
           case 'updateSettings':

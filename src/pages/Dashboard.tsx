@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useWebSocket } from '../context/useWebSocket';
 import { StatusCard } from '../components/StatusCard';
 import { TankLevelCard } from '../components/TankLevelCard';
-import { ToggleSwitch } from '../components/ToggleSwitch';
 import { ConnectionModal } from '../components/ConnectionModal';
 import { Settings, Wifi, WifiOff, RefreshCw } from 'lucide-react';
 
@@ -28,14 +27,26 @@ export const Dashboard: React.FC = () => {
     }, 1000);
   };
 
-  const handleMotorToggle = (checked: boolean) => {
-    if (appState.systemStatus.mode === 'manual') {
-      sendMessage({
-        type: 'motorControl',
-        motorOn: checked,
-        timestamp: new Date().toISOString()
-      });
-    }
+
+  const handlePump1Toggle = () => {
+    sendMessage({
+      type: 'pump1Control',
+      timestamp: new Date().toISOString()
+    });
+  };
+
+  const handlePump2Toggle = () => {
+    sendMessage({
+      type: 'pump2Control',
+      timestamp: new Date().toISOString()
+    });
+  };
+
+  const handleSystemToggle = () => {
+    sendMessage({
+      type: 'systemControl',
+      timestamp: new Date().toISOString()
+    });
   };
 
   const handleConnect = () => {
@@ -147,31 +158,102 @@ export const Dashboard: React.FC = () => {
           />
         </div>
 
-        {/* Motor Control (Manual Mode) */}
-        {appState.systemStatus.mode === 'manual' && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
-              Manual Motor Control
-            </h3>
-            <div className="flex items-center justify-between">
+        {/* Pump Control */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
+            Pump Control
+          </h3>
+          
+          {/* System Control */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-4">
               <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                  Motor Control
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  System Control
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-500">
-                  Toggle the motor on/off manually
+                  Enable/disable the entire system
                 </p>
               </div>
-              <ToggleSwitch
-                checked={appState.systemStatus.motorStatus === 'ON'}
-                onChange={handleMotorToggle}
-                label="Motor"
-                color="green"
-                size="lg"
-              />
+              <button
+                onClick={handleSystemToggle}
+                className={`
+                  px-4 py-2 rounded-lg font-medium transition-colors
+                  ${appState.systemStatus.connected 
+                    ? 'bg-green-500 hover:bg-green-600 text-white' 
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  }
+                `}
+                disabled={!appState.systemStatus.connected}
+              >
+                {appState.systemStatus.connected ? 'System ON' : 'System OFF'}
+              </button>
             </div>
           </div>
-        )}
+
+          {/* Pump Controls */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Pump 1 */}
+            <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Pump 1
+                  </h4>
+                  <p className="text-xs text-gray-500 dark:text-gray-500">
+                    Primary pump control
+                  </p>
+                </div>
+                <button
+                  onClick={handlePump1Toggle}
+                  className={`
+                    px-3 py-1 rounded-md text-sm font-medium transition-colors
+                    ${appState.systemStatus.connected 
+                      ? 'bg-blue-500 hover:bg-blue-600 text-white' 
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }
+                  `}
+                  disabled={!appState.systemStatus.connected}
+                >
+                  Toggle Pump 1
+                </button>
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-500">
+                Status: {appState.systemStatus.connected ? 'Ready' : 'Disconnected'}
+              </div>
+            </div>
+
+            {/* Pump 2 */}
+            <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Pump 2
+                  </h4>
+                  <p className="text-xs text-gray-500 dark:text-gray-500">
+                    Secondary pump control
+                  </p>
+                </div>
+                <button
+                  onClick={handlePump2Toggle}
+                  className={`
+                    px-3 py-1 rounded-md text-sm font-medium transition-colors
+                    ${appState.systemStatus.connected 
+                      ? 'bg-blue-500 hover:bg-blue-600 text-white' 
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }
+                  `}
+                  disabled={!appState.systemStatus.connected}
+                >
+                  Toggle Pump 2
+                </button>
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-500">
+                Status: {appState.systemStatus.connected ? 'Ready' : 'Disconnected'}
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Connection Status */}
         {!isConnected && (

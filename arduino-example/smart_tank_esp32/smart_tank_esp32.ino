@@ -30,8 +30,8 @@ const int buzzerPin = 13;    // Buzzer
 const int configPin = 34;    // Configuration button
 
 // WiFi credentials (update these)
-const char* ssid = "Sivagami Illam 2.4G";
-const char* password = "Sivagami@27";
+const char* ssid = "YOUR_WIFI_SSID";
+const char* password = "YOUR_WIFI_PASSWORD";
 
 // WebSocket server
 WebSocketsServer webSocket = WebSocketsServer(81);
@@ -124,51 +124,76 @@ void readData2(void *pvParameters) {
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length) {
   switch(type) {
     case WStype_DISCONNECTED:
-      Serial.printf("[%u] Disconnected!\n", num);
+      Serial.printf("[%u] Client disconnected!\n", num);
       break;
       
     case WStype_CONNECTED: {
       IPAddress ip = webSocket.remoteIP(num);
-      Serial.printf("[%u] Connected from %d.%d.%d.%d url: %s\n", num, ip[0], ip[1], ip[2], ip[3], payload);
+      Serial.printf("[%u] Client connected from %d.%d.%d.%d\n", num, ip[0], ip[1], ip[2], ip[3]);
+      Serial.println("Sending initial data to client...");
       
       // Send initial data
       sendSensorData();
+      sendStatusUpdate();
       break;
     }
     
     case WStype_TEXT: {
-      Serial.printf("[%u] get Text: %s\n", num, payload);
+      Serial.printf("[%u] Received command: %s\n", num, payload);
       
       // Parse JSON command
       DynamicJsonDocument doc(1024);
-      deserializeJson(doc, payload);
+      DeserializationError error = deserializeJson(doc, payload);
+      
+      if (error) {
+        Serial.print("JSON parsing failed: ");
+        Serial.println(error.c_str());
+        return;
+      }
       
       String command = doc["command"];
+      Serial.print("Executing command: ");
+      Serial.println(command);
       
       if (command == "togglePump1") {
         pump1Enabled = !pump1Enabled;
         digitalWrite(relay1Pin, pump1Enabled ? HIGH : LOW);
+        Serial.print("Pump 1: ");
+        Serial.println(pump1Enabled ? "ON" : "OFF");
         sendStatusUpdate();
       }
       else if (command == "togglePump2") {
         pump2Enabled = !pump2Enabled;
         digitalWrite(relay2Pin, pump2Enabled ? HIGH : LOW);
+        Serial.print("Pump 2: ");
+        Serial.println(pump2Enabled ? "ON" : "OFF");
         sendStatusUpdate();
       }
       else if (command == "toggleSystem") {
         systemEnabled = !systemEnabled;
+        Serial.print("System: ");
+        Serial.println(systemEnabled ? "ENABLED" : "DISABLED");
         sendStatusUpdate();
       }
       else if (command == "getData") {
+        Serial.println("Sending sensor data...");
         sendSensorData();
       }
       else if (command == "setDelayA") {
         int delay = doc["value"];
         sensorManager.setReadDelayA(delay);
+        Serial.print("Sensor A delay set to: ");
+        Serial.println(delay);
       }
       else if (command == "setDelayB") {
         int delay = doc["value"];
         sensorManager.setReadDelayB(delay);
+        Serial.print("Sensor B delay set to: ");
+        Serial.println(delay);
+      }
+      else {
+        Serial.print("Unknown command: ");
+        Serial.println(command);
       }
       break;
     }
@@ -188,6 +213,9 @@ void sendSensorData() {
   
   String jsonString;
   serializeJson(doc, jsonString);
+  
+  Serial.print("Sending sensor data: ");
+  Serial.println(jsonString);
   webSocket.broadcastTXT(jsonString);
 }
 
@@ -257,15 +285,32 @@ void setup() {
   digitalWrite(buzzerPin, LOW);
   
   // Connect to WiFi
+  Serial.println("Starting WiFi connection...");
   WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
+  
+  int wifiAttempts = 0;
+  while (WiFi.status() != WL_CONNECTED && wifiAttempts < 20) {
     delay(1000);
-    Serial.println("Connecting to WiFi...");
+    wifiAttempts++;
+    Serial.print("Connecting to WiFi... Attempt ");
+    Serial.println(wifiAttempts);
   }
   
-  Serial.println("WiFi connected!");
-  Serial.print("IP address: ");
-  Serial.println(WiFi.localIP());
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("WiFi connected successfully!");
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());
+    Serial.print("WebSocket server running on: ws://");
+    Serial.print(WiFi.localIP());
+    Serial.println(":81");
+  } else {
+    Serial.println("WiFi connection failed!");
+    Serial.println("Please check your credentials and try again.");
+    while (true) {
+      delay(1000);
+      Serial.println("WiFi connection failed. Restarting...");
+    }
+  }
   
   // Start WebSocket server
   webSocket.begin();
