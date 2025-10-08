@@ -37,7 +37,7 @@ export const ConnectionModal: React.FC<ConnectionModalProps> = ({
       } else {
         setTestResult({ success: false, message: result.error || 'Connection failed' });
       }
-    } catch (error) {
+    } catch {
       setTestResult({ success: false, message: 'Test failed' });
     } finally {
       setIsTesting(false);

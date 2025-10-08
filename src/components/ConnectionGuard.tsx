@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useWebSocket } from '../context/useWebSocket';
 import { ConnectionModal } from './ConnectionModal';
 import { TroubleshootingGuide } from './TroubleshootingGuide';
@@ -20,14 +20,7 @@ export const ConnectionGuard: React.FC<ConnectionGuardProps> = ({ children }) =>
 
   const maxConnectionAttempts = 3;
 
-  // Auto-scan for devices on first load
-  useEffect(() => {
-    if (!isConnected && connectionAttempts === 0) {
-      handleScanForDevices();
-    }
-  }, []);
-
-  const handleScanForDevices = async () => {
+  const handleScanForDevices = useCallback(async () => {
     setIsScanning(true);
     setLastError(null);
     
@@ -50,7 +43,14 @@ export const ConnectionGuard: React.FC<ConnectionGuardProps> = ({ children }) =>
     } finally {
       setIsScanning(false);
     }
-  };
+  }, []);
+
+  // Auto-scan for devices on first load
+  useEffect(() => {
+    if (!isConnected && connectionAttempts === 0) {
+      handleScanForDevices();
+    }
+  }, [isConnected, connectionAttempts, handleScanForDevices]);
 
   const handleManualConnect = (host: string) => {
     setLastError(null);
@@ -265,7 +265,7 @@ export const ConnectionGuard: React.FC<ConnectionGuardProps> = ({ children }) =>
             try {
               const result = await testConnection(host, 81);
               return result.success;
-            } catch (error) {
+            } catch {
               return false;
             }
           }}

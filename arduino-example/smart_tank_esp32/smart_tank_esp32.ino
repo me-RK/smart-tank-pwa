@@ -30,8 +30,8 @@ const int buzzerPin = 13;    // Buzzer
 const int configPin = 34;    // Configuration button
 
 // WiFi credentials (update these)
-const char* ssid = "YOUR_WIFI_SSID";
-const char* password = "YOUR_WIFI_PASSWORD";
+const char* ssid = "Sivagami Illam 2.4G";
+const char* password = "Sivagami@27";
 
 // WebSocket server
 WebSocketsServer webSocket = WebSocketsServer(81);

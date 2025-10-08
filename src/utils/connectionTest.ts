@@ -230,7 +230,7 @@ export const discoverEsp32Devices = async (): Promise<string[]> => {
           return ip;
         }
         return null;
-      } catch (error) {
+      } catch {
         return null;
       }
     });

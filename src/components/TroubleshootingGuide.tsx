@@ -122,7 +122,7 @@ export const TroubleshootingGuide: React.FC<TroubleshootingGuideProps> = ({
         mode: 'no-cors' 
       });
       return true;
-    } catch (error) {
+    } catch {
       return false;
     }
   };
