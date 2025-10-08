@@ -11,7 +11,7 @@ interface ConnectionGuardProps {
 }
 
 export const ConnectionGuard: React.FC<ConnectionGuardProps> = ({ children }) => {
-  const { isConnected, appState, connect } = useWebSocket();
+  const { isConnected, appState, connect, disconnect } = useWebSocket();
   const [showConnectionModal, setShowConnectionModal] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [discoveredDevices, setDiscoveredDevices] = useState<string[]>([]);
@@ -19,12 +19,15 @@ export const ConnectionGuard: React.FC<ConnectionGuardProps> = ({ children }) =>
   const [lastError, setLastError] = useState<string | null>(null);
   const [showTroubleshooting, setShowTroubleshooting] = useState(false);
   const [showNetworkInfo, setShowNetworkInfo] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<string>('');
 
   const maxConnectionAttempts = 3;
 
   const handleScanForDevices = useCallback(async () => {
     setIsScanning(true);
     setLastError(null);
+    setConnectionStatus('Scanning for ESP32 devices...');
     
     try {
       const devices = await discoverEsp32Devices();
@@ -34,14 +37,18 @@ export const ConnectionGuard: React.FC<ConnectionGuardProps> = ({ children }) =>
         // Try to connect to the first discovered device
         const firstDevice = devices[0];
         console.log(`Found ESP32 device at ${firstDevice}, attempting connection...`);
+        setConnectionStatus(`Found device at ${firstDevice}. Connecting...`);
+        setIsConnecting(true);
         connect(firstDevice);
         setConnectionAttempts(prev => prev + 1);
       } else {
         setLastError('No ESP32 devices found on the network. Please check your device and try again.');
+        setConnectionStatus('No devices found');
       }
     } catch (error) {
       console.error('Device scan failed:', error);
       setLastError('Failed to scan for devices. Please check your network connection.');
+      setConnectionStatus('Scan failed');
     } finally {
       setIsScanning(false);
     }
@@ -54,8 +61,22 @@ export const ConnectionGuard: React.FC<ConnectionGuardProps> = ({ children }) =>
     }
   }, [isConnected, connectionAttempts, handleScanForDevices]);
 
+  // Monitor connection status changes
+  useEffect(() => {
+    if (isConnected) {
+      setConnectionStatus('Connected successfully!');
+      setIsConnecting(false);
+      setIsScanning(false);
+    } else if (appState.error) {
+      setConnectionStatus(`Connection failed: ${appState.error}`);
+      setIsConnecting(false);
+    }
+  }, [isConnected, appState.error]);
+
   const handleManualConnect = (host: string) => {
     setLastError(null);
+    setConnectionStatus(`Connecting to ${host}...`);
+    setIsConnecting(true);
     connect(host);
     setConnectionAttempts(prev => prev + 1);
     setShowConnectionModal(false);
@@ -73,6 +94,18 @@ export const ConnectionGuard: React.FC<ConnectionGuardProps> = ({ children }) =>
     } else {
       setLastError('Maximum connection attempts reached. Please check your ESP32 device and network settings.');
     }
+  };
+
+  const handleResetConnection = () => {
+    console.log('Resetting connection...');
+    disconnect();
+    setConnectionAttempts(0);
+    setLastError(null);
+    setConnectionStatus('');
+    setIsConnecting(false);
+    setIsScanning(false);
+    // Clear stored host to prevent auto-reconnect
+    localStorage.removeItem('tankHost');
   };
 
 
@@ -100,11 +133,17 @@ export const ConnectionGuard: React.FC<ConnectionGuardProps> = ({ children }) =>
               <div className="flex items-center space-x-2">
                 {isScanning ? (
                   <RefreshCw className="w-5 h-5 text-blue-500 animate-spin" />
+                ) : isConnecting ? (
+                  <RefreshCw className="w-5 h-5 text-yellow-500 animate-spin" />
+                ) : isConnected ? (
+                  <Wifi className="w-5 h-5 text-green-500" />
                 ) : (
                   <WifiOff className="w-5 h-5 text-red-500" />
                 )}
                 <span className="font-medium text-gray-800 dark:text-gray-200">
-                  {isScanning ? 'Scanning for devices...' : 'Not Connected'}
+                  {isScanning ? 'Scanning for devices...' : 
+                   isConnecting ? 'Connecting...' : 
+                   isConnected ? 'Connected' : 'Not Connected'}
                 </span>
               </div>
               <div className="flex items-center space-x-2">
@@ -120,6 +159,24 @@ export const ConnectionGuard: React.FC<ConnectionGuardProps> = ({ children }) =>
                 </button>
               </div>
             </div>
+
+            {/* Connection Status */}
+            {connectionStatus && (
+              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <div className="flex items-center space-x-2">
+                  {isConnecting ? (
+                    <RefreshCw className="w-4 h-4 text-blue-500 animate-spin" />
+                  ) : isConnected ? (
+                    <Wifi className="w-4 h-4 text-green-500" />
+                  ) : (
+                    <Info className="w-4 h-4 text-blue-500" />
+                  )}
+                  <span className="text-sm text-blue-700 dark:text-blue-300">
+                    {connectionStatus}
+                  </span>
+                </div>
+              </div>
+            )}
 
             {/* Error Display */}
             {lastError && (
@@ -232,6 +289,18 @@ export const ConnectionGuard: React.FC<ConnectionGuardProps> = ({ children }) =>
               >
                 <Settings className="w-4 h-4" />
                 <span>Manual Connection</span>
+              </button>
+
+              <button
+                onClick={handleResetConnection}
+                className="
+                  w-full px-4 py-3 bg-red-500 hover:bg-red-600
+                  text-white rounded-lg transition-colors font-medium
+                  flex items-center justify-center space-x-2
+                "
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>Reset Connection</span>
               </button>
 
               {connectionAttempts > 0 && connectionAttempts < maxConnectionAttempts && (

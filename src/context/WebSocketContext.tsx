@@ -72,7 +72,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Handle WebSocket connection events
   const handleOpen = useCallback(() => {
-    console.log('WebSocket connected to ESP32');
+    console.log('✅ WebSocket connected to ESP32 successfully!');
     setAppState((prev: AppState) => ({ 
       ...prev, 
       isConnected: true, 
@@ -88,8 +88,10 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     // Request initial data from ESP32
     setTimeout(() => {
       if (ws && ws.readyState === WebSocket.OPEN) {
-        console.log('Requesting initial data from ESP32...');
+        console.log('📡 Requesting initial data from ESP32...');
         ws.send(JSON.stringify({ command: 'getData' }));
+      } else {
+        console.warn('⚠️ WebSocket not open when trying to request data');
       }
     }, 1000);
   }, [reconnectInterval, ws]);
@@ -101,11 +103,22 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       error: 'Connection error occurred',
       isConnected: false
     }));
-  }, []);
+    // Stop reconnection attempts on error
+    if (reconnectInterval) {
+      clearTimeout(reconnectInterval);
+      setReconnectInterval(null);
+    }
+  }, [reconnectInterval]);
 
   // Connect to WebSocket
   const connect = useCallback((host: string) => {
     try {
+      // Check if already connecting or connected
+      if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
+        console.log('WebSocket already connecting or connected. Ignoring new connection request.');
+        return;
+      }
+      
       // Store host in localStorage for persistence
       localStorage.setItem('tankHost', host);
       
@@ -126,6 +139,8 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         return;
       }
       
+      console.log(`🔌 Attempting WebSocket connection to ${wsUrl}...`);
+      
       const newWs = new WebSocket(wsUrl);
       
       newWs.onopen = handleOpen;
@@ -137,8 +152,8 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           systemStatus: { ...prev.systemStatus, connected: false }
         }));
         
-        // Attempt to reconnect if not manually disconnected and not a clean close
-        if (reconnectAttempts < maxReconnectAttempts && event.code !== 1000) {
+        // Only attempt to reconnect if not manually disconnected and not a clean close
+        if (reconnectAttempts < maxReconnectAttempts && event.code !== 1000 && event.code !== 1006) {
           const delay = Math.min(reconnectDelay * Math.pow(reconnectBackoff, reconnectAttempts), 30000);
           console.log(`Attempting to reconnect in ${delay}ms (attempt ${reconnectAttempts + 1}/${maxReconnectAttempts})`);
           
@@ -151,10 +166,13 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           }, delay);
           setReconnectInterval(interval);
         } else if (reconnectAttempts >= maxReconnectAttempts) {
+          console.log('Max reconnection attempts reached. Stopping reconnection.');
           setAppState((prev: AppState) => ({ 
             ...prev, 
             error: 'Failed to reconnect after multiple attempts. Please check your connection and try again.'
           }));
+        } else {
+          console.log('Connection closed cleanly or too many failures. Not reconnecting.');
         }
       };
       newWs.onerror = handleError;
@@ -249,34 +267,25 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   }, [ws]);
 
+
   // Auto-connect on mount if host is stored
   useEffect(() => {
     const storedHost = localStorage.getItem('tankHost');
-    if (storedHost) {
+    if (storedHost && !appState.isConnected) {
+      console.log('Auto-connecting to stored host:', storedHost);
       connect(storedHost);
     }
     
     return () => {
       if (reconnectInterval) {
-        clearInterval(reconnectInterval);
+        clearTimeout(reconnectInterval);
       }
       if (ws) {
         ws.close();
       }
     };
-  }, [connect, reconnectInterval, ws]);
+  }, []); // Remove dependencies to prevent re-triggering
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (reconnectInterval) {
-        clearInterval(reconnectInterval);
-      }
-      if (ws) {
-        ws.close();
-      }
-    };
-  }, [ws, reconnectInterval]);
 
   const value: WebSocketContextType = {
     appState,
