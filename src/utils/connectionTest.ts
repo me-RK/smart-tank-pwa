@@ -23,8 +23,11 @@ export const testConnection = async (host: string, port: number = 81): Promise<C
   const startTime = Date.now();
   const wsUrl = `ws://${host}:${port}`;
   
+  console.log(`Testing connection to ${wsUrl}...`);
+  
   return new Promise((resolve) => {
     const timeout = setTimeout(() => {
+      console.log(`❌ ${host}:${port} - Connection timeout after 5 seconds`);
       resolve({
         success: false,
         error: 'Connection timeout after 5 seconds',
@@ -42,6 +45,7 @@ export const testConnection = async (host: string, port: number = 81): Promise<C
       const ws = new WebSocket(wsUrl);
       
       ws.onopen = () => {
+        console.log(`✅ ${host}:${port} - WebSocket connection successful`);
         clearTimeout(timeout);
         ws.close();
         resolve({
@@ -56,7 +60,8 @@ export const testConnection = async (host: string, port: number = 81): Promise<C
         });
       };
 
-      ws.onerror = () => {
+      ws.onerror = (error) => {
+        console.log(`❌ ${host}:${port} - WebSocket connection failed:`, error);
         clearTimeout(timeout);
         resolve({
           success: false,
@@ -189,6 +194,16 @@ export const runConnectionTests = async (host: string): Promise<{
  * Common ESP32 IP addresses to try
  */
 export const commonEsp32Ips = [
+  '192.168.1.1',
+  '192.168.1.2',
+  '192.168.1.3',
+  '192.168.1.4',
+  '192.168.1.5',
+  '192.168.1.6',
+  '192.168.1.7',
+  '192.168.1.8',  // Your ESP32 IP
+  '192.168.1.9',
+  '192.168.1.10',
   '192.168.1.100',
   '192.168.1.101',
   '192.168.1.102',
@@ -211,9 +226,10 @@ export const discoverEsp32Devices = async (): Promise<string[]> => {
   const discovered: string[] = [];
   
   console.log('Scanning for ESP32 devices...');
+  console.log('Testing IPs:', commonEsp32Ips);
   
   // Test common IP addresses in parallel batches
-  const batchSize = 5;
+  const batchSize = 3; // Reduced batch size for better reliability
   const batches = [];
   
   for (let i = 0; i < commonEsp32Ips.length; i += batchSize) {
@@ -222,15 +238,20 @@ export const discoverEsp32Devices = async (): Promise<string[]> => {
   }
   
   for (const batch of batches) {
+    console.log(`Testing batch:`, batch);
     const promises = batch.map(async (ip) => {
       try {
+        console.log(`Testing ${ip}...`);
         const result = await testConnection(ip, 81);
         if (result.success) {
-          console.log(`Found ESP32 device at ${ip}`);
+          console.log(`✅ Found ESP32 device at ${ip}`);
           return ip;
+        } else {
+          console.log(`❌ ${ip} failed:`, result.error);
+          return null;
         }
-        return null;
-      } catch {
+      } catch (error) {
+        console.log(`❌ ${ip} error:`, error);
         return null;
       }
     });
@@ -241,6 +262,7 @@ export const discoverEsp32Devices = async (): Promise<string[]> => {
     
     // If we found devices, we can stop scanning
     if (discovered.length > 0) {
+      console.log(`Found devices, stopping scan.`);
       break;
     }
   }
