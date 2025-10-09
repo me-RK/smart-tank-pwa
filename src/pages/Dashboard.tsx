@@ -15,10 +15,9 @@ export const Dashboard: React.FC = () => {
   const handleSyncData = async () => {
     setIsRefreshing(true);
     
-    // Send sync request to server
+    // Send sync request to server using old firmware protocol
     sendMessage({
-      type: 'sync',
-      timestamp: new Date().toISOString()
+      type: 'homeData'
     });
 
     // Simulate refresh delay
@@ -28,26 +27,14 @@ export const Dashboard: React.FC = () => {
   };
 
 
-  const handlePump1Toggle = () => {
+  const handleMotorToggle = () => {
+    const currentMotorState = appState.systemStatus.motorStatus;
     sendMessage({
-      type: 'pump1Control',
-      timestamp: new Date().toISOString()
+      type: 'motorControl',
+      motorOn: currentMotorState === 'OFF'
     });
   };
 
-  const handlePump2Toggle = () => {
-    sendMessage({
-      type: 'pump2Control',
-      timestamp: new Date().toISOString()
-    });
-  };
-
-  const handleSystemToggle = () => {
-    sendMessage({
-      type: 'systemControl',
-      timestamp: new Date().toISOString()
-    });
-  };
 
   const handleConnect = () => {
     setShowConnectionModal(true);
@@ -135,12 +122,24 @@ export const Dashboard: React.FC = () => {
             connected={appState.systemStatus.connected}
             lastUpdated={appState.systemStatus.lastUpdated}
             runtime={appState.systemStatus.runtime}
-            motorStatus={appState.systemStatus.motorStatus}
-            mode={appState.systemStatus.mode}
-            autoModeReasons={appState.systemStatus.autoModeReasons}
+            motorStatus={appState.systemStatus.motorStatus === true || appState.systemStatus.motorStatus === 'ON' ? 'ON' : 'OFF'}
+            mode={appState.systemStatus.mode === 'Auto Mode' ? 'auto' : 'manual'}
+            autoModeReasons={appState.systemStatus.autoModeReasons ? [appState.systemStatus.autoModeReasons] : []}
             onSyncData={handleSyncData}
           />
         </div>
+
+        {/* Auto Mode Reason Display */}
+        {appState.systemStatus.mode === 'Auto Mode' && appState.systemStatus.autoModeReasons && appState.systemStatus.autoModeReasons !== 'NONE' && (
+          <div className="mb-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+              <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                Auto Mode Reason: {appState.systemStatus.autoModeReasons}
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Tank Levels */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
@@ -158,98 +157,115 @@ export const Dashboard: React.FC = () => {
           />
         </div>
 
-        {/* Pump Control */}
+        {/* Motor Control */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
           <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
-            Pump Control
+            Motor Control
           </h3>
           
-          {/* System Control */}
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  System Control
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-500">
-                  Enable/disable the entire system
+          {/* Manual Mode Motor Control */}
+          {appState.systemStatus.mode === 'Manual Mode' && (
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Manual Motor Control
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-500">
+                    {appState.systemStatus.motorStatus === 'ON' ? 'Motor is currently ON' : 'Motor is currently OFF'}
+                  </p>
+                </div>
+                <button
+                  onClick={handleMotorToggle}
+                  className={`
+                    px-6 py-3 rounded-lg font-medium transition-colors text-lg
+                    ${appState.systemStatus.connected 
+                      ? (appState.systemStatus.motorStatus === 'ON' 
+                          ? 'bg-red-500 hover:bg-red-600 text-white' 
+                          : 'bg-green-500 hover:bg-green-600 text-white')
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }
+                  `}
+                  disabled={!appState.systemStatus.connected}
+                >
+                  {appState.systemStatus.motorStatus === 'ON' ? 'Turn OFF Motor' : 'Turn ON Motor'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Auto Mode Information */}
+          {appState.systemStatus.mode === 'Auto Mode' && (
+            <div className="mb-6">
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <div className="flex items-center space-x-2 mb-2">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                    Auto Mode Active
+                  </span>
+                </div>
+                <p className="text-xs text-blue-600 dark:text-blue-400">
+                  Motor is automatically controlled based on tank levels and system settings.
+                  Current status: <strong>{appState.systemStatus.motorStatus}</strong>
                 </p>
               </div>
-              <button
-                onClick={handleSystemToggle}
-                className={`
-                  px-4 py-2 rounded-lg font-medium transition-colors
-                  ${appState.systemStatus.connected 
-                    ? 'bg-green-500 hover:bg-green-600 text-white' 
-                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  }
-                `}
-                disabled={!appState.systemStatus.connected}
-              >
-                {appState.systemStatus.connected ? 'System ON' : 'System OFF'}
-              </button>
             </div>
-          </div>
+          )}
 
-          {/* Pump Controls */}
+          {/* System Information */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Pump 1 */}
+            {/* System Mode */}
             <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Pump 1
+                    System Mode
                   </h4>
                   <p className="text-xs text-gray-500 dark:text-gray-500">
-                    Primary pump control
+                    Current operation mode
                   </p>
                 </div>
-                <button
-                  onClick={handlePump1Toggle}
-                  className={`
-                    px-3 py-1 rounded-md text-sm font-medium transition-colors
-                    ${appState.systemStatus.connected 
-                      ? 'bg-blue-500 hover:bg-blue-600 text-white' 
-                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    }
-                  `}
-                  disabled={!appState.systemStatus.connected}
-                >
-                  Toggle Pump 1
-                </button>
+                <div className={`
+                  px-3 py-1 rounded-md text-sm font-medium
+                  ${appState.systemStatus.mode === 'Auto Mode' 
+                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' 
+                    : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'
+                  }
+                `}>
+                  {appState.systemStatus.mode}
+                </div>
               </div>
               <div className="text-xs text-gray-500 dark:text-gray-500">
-                Status: {appState.systemStatus.connected ? 'Ready' : 'Disconnected'}
+                {appState.systemStatus.mode === 'Auto Mode' 
+                  ? 'Automated control based on tank levels' 
+                  : 'Manual control required'
+                }
               </div>
             </div>
 
-            {/* Pump 2 */}
+            {/* Motor Status */}
             <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Pump 2
+                    Motor Status
                   </h4>
                   <p className="text-xs text-gray-500 dark:text-gray-500">
-                    Secondary pump control
+                    Current motor state
                   </p>
                 </div>
-                <button
-                  onClick={handlePump2Toggle}
-                  className={`
-                    px-3 py-1 rounded-md text-sm font-medium transition-colors
-                    ${appState.systemStatus.connected 
-                      ? 'bg-blue-500 hover:bg-blue-600 text-white' 
-                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    }
-                  `}
-                  disabled={!appState.systemStatus.connected}
-                >
-                  Toggle Pump 2
-                </button>
+                <div className={`
+                  px-3 py-1 rounded-md text-sm font-medium
+                  ${appState.systemStatus.motorStatus === 'ON' 
+                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' 
+                    : 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-300'
+                  }
+                `}>
+                  {appState.systemStatus.motorStatus}
+                </div>
               </div>
               <div className="text-xs text-gray-500 dark:text-gray-500">
-                Status: {appState.systemStatus.connected ? 'Ready' : 'Disconnected'}
+                {appState.systemStatus.connected ? 'Connected to ESP32' : 'Disconnected'}
               </div>
             </div>
           </div>

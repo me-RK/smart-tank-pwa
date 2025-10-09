@@ -14,7 +14,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const reconnectDelay = 2000;
   const reconnectBackoff = 1.5;
 
-  // Parse incoming WebSocket messages
+  // Parse incoming WebSocket messages - Enhanced for old firmware compatibility
   const handleMessage = useCallback((event: MessageEvent) => {
     try {
       const message = JSON.parse(event.data);
@@ -23,43 +23,134 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setAppState((prevState: AppState) => {
         const newState = { ...prevState };
         
-        switch (message.type) {
-          case 'sensorData':
-            // Handle sensor data from ESP32
-            newState.tankData = {
-              ...prevState.tankData,
-              tankA: {
-                upper: message.sensorA || 0,
-                lower: message.sensorA || 0
-              },
-              tankB: {
-                upper: message.sensorB || 0,
-                lower: message.sensorB || 0
+        // Handle home data response (matching old firmware protocol)
+        if (message.RTV !== undefined || message.SM !== undefined || message.MSV !== undefined) {
+          // This is home data from the old firmware
+          newState.systemStatus = {
+            ...prevState.systemStatus,
+            connected: true,
+            runtime: parseFloat(message.RTV || '0'),
+            mode: message.SM || 'Manual Mode',
+            motorStatus: message.MSV === 'ON' || message.MSV === true ? 'ON' : 'OFF',
+            autoModeReasons: message.AMR || 'NONE',
+            lastUpdated: new Date().toISOString()
+          };
+          
+          // Update tank data
+          newState.tankData = {
+            ...prevState.tankData,
+            tankA: {
+              upper: message.UTWLA || 0,
+              lower: message.LTWLA || 0
+            },
+            tankB: {
+              upper: message.UTWLB || 0,
+              lower: message.LTWLB || 0
+            }
+          };
+          
+          // Update sensor enable states
+          newState.systemSettings = {
+            ...prevState.systemSettings,
+            sensors: {
+              lowerTankA: message.LAE || false,
+              lowerTankB: message.LBE || false,
+              upperTankA: message.UAE || false,
+              upperTankB: message.UBE || false
+            }
+          };
+          
+          newState.isConnected = true;
+          newState.error = null;
+          setReconnectAttempts(0);
+        }
+        // Handle settings data response
+        else if (message.UTHA !== undefined || message.MIAV !== undefined) {
+          // This is settings data from the old firmware
+          newState.systemSettings = {
+            ...prevState.systemSettings,
+            mode: message.SM || 'Manual Mode',
+            autoMode: {
+              minWaterLevel: message.MIAV || 50,
+              maxWaterLevel: message.MAAV || 90,
+              specialFunctions: {
+                upperTankOverFlowLock: message.UTOFL || true,
+                lowerTankOverFlowLock: message.LTOFL || true,
+                syncBothTank: message.SBT || true,
+                buzzerAlert: message.BA || true
               }
-            };
-            newState.isConnected = true;
-            newState.error = null;
-            // Reset connection attempts on successful data reception
-            setReconnectAttempts(0);
-            break;
-          case 'status':
-            // Handle status updates from ESP32
-            newState.systemStatus = {
-              ...prevState.systemStatus,
-              connected: true,
-              motorStatus: message.pump1Enabled || message.pump2Enabled ? 'ON' : 'OFF',
-              lastUpdated: new Date().toISOString()
-            };
-            newState.isConnected = true;
-            newState.error = null;
-            // Reset connection attempts on successful status update
-            setReconnectAttempts(0);
-            break;
-          case 'error':
-            newState.error = message.data || 'Unknown error from ESP32';
-            break;
-          default:
-            console.log('Unknown message type from ESP32:', message.type);
+            },
+            sensors: {
+              lowerTankA: message.LAE || false,
+              lowerTankB: message.LBE || false,
+              upperTankA: message.UAE || false,
+              upperTankB: message.UBE || false
+            },
+            tankDimensions: {
+              upperTankA: {
+                height: message.UTHA || 75,
+                waterFullHeight: message.UTWFHA || 70,
+                waterEmptyHeight: message.UTWEHA || 0
+              },
+              upperTankB: {
+                height: message.UTHB || 75,
+                waterFullHeight: message.UTWFHB || 70,
+                waterEmptyHeight: message.UTWEHB || 0
+              },
+              lowerTankA: {
+                height: message.LTHA || 75,
+                waterFullHeight: message.LTWFHA || 70,
+                waterEmptyHeight: message.LTWEHA || 0
+              },
+              lowerTankB: {
+                height: message.LTHB || 75,
+                waterFullHeight: message.LTWFHB || 70,
+                waterEmptyHeight: message.LTWEHB || 0
+              }
+            },
+            macAddress: message.BMAC
+          };
+          
+          newState.isConnected = true;
+          newState.error = null;
+          setReconnectAttempts(0);
+        }
+        // Handle legacy message types for backward compatibility
+        else {
+          switch (message.type) {
+            case 'sensorData':
+              newState.tankData = {
+                ...prevState.tankData,
+                tankA: {
+                  upper: message.sensorA || 0,
+                  lower: message.sensorA || 0
+                },
+                tankB: {
+                  upper: message.sensorB || 0,
+                  lower: message.sensorB || 0
+                }
+              };
+              newState.isConnected = true;
+              newState.error = null;
+              setReconnectAttempts(0);
+              break;
+            case 'status':
+              newState.systemStatus = {
+                ...prevState.systemStatus,
+                connected: true,
+                motorStatus: message.pump1Enabled || message.pump2Enabled ? 'ON' : 'OFF',
+                lastUpdated: new Date().toISOString()
+              };
+              newState.isConnected = true;
+              newState.error = null;
+              setReconnectAttempts(0);
+              break;
+            case 'error':
+              newState.error = message.data || 'Unknown error from ESP32';
+              break;
+            default:
+              console.log('Unknown message type from ESP32:', message.type);
+          }
         }
         
         return newState;
@@ -85,11 +176,12 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setReconnectInterval(null);
     }
     
-    // Request initial data from ESP32
+    // Request initial data from ESP32 using old firmware protocol
     setTimeout(() => {
       if (ws && ws.readyState === WebSocket.OPEN) {
         console.log('📡 Requesting initial data from ESP32...');
-        ws.send(JSON.stringify({ command: 'getData' }));
+        ws.send('getHomeData');
+        ws.send('getSettingData');
       } else {
         console.warn('⚠️ WebSocket not open when trying to request data');
       }
@@ -186,6 +278,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         error: 'Failed to create WebSocket connection'
       }));
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [handleOpen, handleError, handleMessage, reconnectAttempts]);
 
   // Disconnect WebSocket
@@ -205,52 +298,89 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }));
   }, [ws, reconnectInterval]);
 
-  // Send message through WebSocket
+  // Send message through WebSocket - Enhanced for old firmware compatibility
   const sendMessage = useCallback((message: WebSocketMessage) => {
     if (ws && ws.readyState === WebSocket.OPEN) {
       try {
-        // Convert PWA message format to ESP32 format
-        let esp32Message;
-        
+        // Handle different message types using old firmware protocol
         switch (message.type) {
           case 'motorControl':
-            // Send pump control command based on motor state
-            esp32Message = {
-              command: 'togglePump1'
-            };
-            break;
-          case 'pump1Control':
-            esp32Message = {
-              command: 'togglePump1'
-            };
-            break;
-          case 'pump2Control':
-            esp32Message = {
-              command: 'togglePump2'
-            };
-            break;
-          case 'systemControl':
-            esp32Message = {
-              command: 'toggleSystem'
-            };
-            break;
-          case 'updateSettings':
-            // Handle settings updates
-            if (message.settings) {
-              esp32Message = {
-                command: 'setDelayA',
-                value: 1000 // Default delay
-              };
+            // Send motor control command
+            if (message.motorOn) {
+              ws.send('motorOn');
+            } else {
+              ws.send('motorOff');
             }
             break;
+          case 'pump1Control':
+            // Toggle pump 1 (same as motor control in old firmware)
+            ws.send('motorOn');
+            break;
+          case 'pump2Control':
+            // Toggle pump 2 (same as motor control in old firmware)
+            ws.send('motorOn');
+            break;
+          case 'systemControl':
+            // System control (same as motor control in old firmware)
+            ws.send('motorOn');
+            break;
+          case 'updateSettings':
+            // Send settings update as JSON
+            if (message.settings) {
+              const settingsMessage = {
+                SM: message.settings.mode,
+                MIAV: message.settings.autoMode.minWaterLevel,
+                MAAV: message.settings.autoMode.maxWaterLevel,
+                UTHA: message.settings.tankDimensions.upperTankA.height,
+                UTWFHA: message.settings.tankDimensions.upperTankA.waterFullHeight,
+                UTWEHA: message.settings.tankDimensions.upperTankA.waterEmptyHeight,
+                LTHA: message.settings.tankDimensions.lowerTankA.height,
+                LTWFHA: message.settings.tankDimensions.lowerTankA.waterFullHeight,
+                LTWEHA: message.settings.tankDimensions.lowerTankA.waterEmptyHeight,
+                UTHB: message.settings.tankDimensions.upperTankB.height,
+                UTWFHB: message.settings.tankDimensions.upperTankB.waterFullHeight,
+                UTWEHB: message.settings.tankDimensions.upperTankB.waterEmptyHeight,
+                LTHB: message.settings.tankDimensions.lowerTankB.height,
+                LTWFHB: message.settings.tankDimensions.lowerTankB.waterFullHeight,
+                LTWEHB: message.settings.tankDimensions.lowerTankB.waterEmptyHeight,
+                LAE: message.settings.sensors.lowerTankA,
+                LBE: message.settings.sensors.lowerTankB,
+                UAE: message.settings.sensors.upperTankA,
+                UBE: message.settings.sensors.upperTankB,
+                UTOFL: message.settings.autoMode.specialFunctions.upperTankOverFlowLock,
+                LTOFL: message.settings.autoMode.specialFunctions.lowerTankOverFlowLock,
+                SBT: message.settings.autoMode.specialFunctions.syncBothTank,
+                BA: message.settings.autoMode.specialFunctions.buzzerAlert
+              };
+              ws.send(JSON.stringify(settingsMessage));
+            }
+            break;
+          case 'wifiConfig':
+            // Send WiFi configuration
+            if (message.MODE && message.SSID && message.PASS) {
+              const wifiMessage = {
+                MODE: message.MODE,
+                SSID: message.SSID,
+                PASS: message.PASS,
+                SIP: message.SIP,
+                GW: message.GW,
+                SNM: message.SNM,
+                PDNS: message.PDNS,
+                SDNS: message.SDNS
+              };
+              ws.send(JSON.stringify(wifiMessage));
+            }
+            break;
+          case 'systemReset':
+            ws.send('systemReset');
+            break;
           default:
-            esp32Message = {
-              command: 'getData'
-            };
+            // Request data
+            ws.send('getHomeData');
+            ws.send('getSettingData');
         }
         
-        console.log('Sending message to ESP32:', esp32Message);
-        ws.send(JSON.stringify(esp32Message));
+        console.log('Sending message to ESP32:', message);
       } catch (error) {
         console.error('Failed to send message:', error);
         setAppState((prev: AppState) => ({ 
@@ -284,6 +414,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         ws.close();
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Remove dependencies to prevent re-triggering
 
 

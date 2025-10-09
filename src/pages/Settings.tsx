@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useWebSocket } from '../context/useWebSocket';
 import { ToggleSwitch } from '../components/ToggleSwitch';
 import { SensorCheckbox } from '../components/SensorCheckbox';
-import { ArrowLeft, Save, RotateCcw, AlertCircle, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Save, RotateCcw, AlertCircle, CheckCircle, Wifi, Settings as SettingsIcon, Monitor } from 'lucide-react';
 
 export const Settings: React.FC = () => {
   const navigate = useNavigate();
@@ -25,18 +25,10 @@ export const Settings: React.FC = () => {
     setHasChanges(hasLocalChanges);
   }, [settings, appState.systemSettings]);
 
-  const handleModeChange = (mode: 'auto' | 'manual') => {
+  const handleModeChange = (mode: 'Auto Mode' | 'Manual Mode') => {
     setSettings(prev => ({
       ...prev,
-      mode,
-      autoMode: mode === 'auto' ? prev.autoMode : {
-        minWaterLevel: 20,
-        maxWaterLevel: 80,
-        specialFunctions: { autoMode: true }
-      },
-      manualMode: mode === 'manual' ? prev.manualMode : {
-        motorControl: false
-      }
+      mode
     }));
   };
 
@@ -50,14 +42,27 @@ export const Settings: React.FC = () => {
     }));
   };
 
-  const handleSpecialFunctionChange = (checked: boolean) => {
+  const handleSpecialFunctionChange = (functionName: string, checked: boolean) => {
     setSettings(prev => ({
       ...prev,
       autoMode: {
         ...prev.autoMode,
         specialFunctions: {
           ...prev.autoMode.specialFunctions,
-          autoMode: checked
+          [functionName]: checked
+        }
+      }
+    }));
+  };
+
+  const handleTankDimensionChange = (tank: string, field: string, value: number) => {
+    setSettings(prev => ({
+      ...prev,
+      tankDimensions: {
+        ...prev.tankDimensions,
+        [tank]: {
+          ...prev.tankDimensions[tank as keyof typeof prev.tankDimensions],
+          [field]: value
         }
       }
     }));
@@ -198,25 +203,26 @@ export const Settings: React.FC = () => {
         <div className="space-y-8">
           {/* System Mode */}
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-            <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
-              System Mode
+            <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4 flex items-center space-x-2">
+              <SettingsIcon className="w-5 h-5" />
+              <span>System Mode</span>
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-3">
                 <ToggleSwitch
-                  checked={settings.mode === 'auto'}
-                  onChange={(checked) => handleModeChange(checked ? 'auto' : 'manual')}
+                  checked={settings.mode === 'Auto Mode'}
+                  onChange={(checked) => handleModeChange(checked ? 'Auto Mode' : 'Manual Mode')}
                   label="Auto Mode"
                   color="blue"
                 />
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  System automatically controls motor based on water levels
+                  System automatically controls motor based on water levels and thresholds
                 </p>
               </div>
               <div className="space-y-3">
                 <ToggleSwitch
-                  checked={settings.mode === 'manual'}
-                  onChange={(checked) => handleModeChange(checked ? 'manual' : 'auto')}
+                  checked={settings.mode === 'Manual Mode'}
+                  onChange={(checked) => handleModeChange(checked ? 'Manual Mode' : 'Auto Mode')}
                   label="Manual Mode"
                   color="purple"
                 />
@@ -228,7 +234,7 @@ export const Settings: React.FC = () => {
           </div>
 
           {/* Auto Mode Settings */}
-          {settings.mode === 'auto' && (
+          {settings.mode === 'Auto Mode' && (
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
               <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
                 Auto Mode Settings
@@ -242,14 +248,18 @@ export const Settings: React.FC = () => {
                     type="number"
                     min="0"
                     max="100"
+                    step="0.1"
                     value={settings.autoMode.minWaterLevel}
-                    onChange={(e) => handleAutoModeSettingsChange('minWaterLevel', parseInt(e.target.value) || 0)}
+                    onChange={(e) => handleAutoModeSettingsChange('minWaterLevel', parseFloat(e.target.value) || 0)}
                     className="
                       w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg
                       focus:ring-2 focus:ring-blue-500 focus:border-transparent
                       bg-white dark:bg-gray-700 text-gray-900 dark:text-white
                     "
                   />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Motor turns ON when water level drops below this value
+                  </p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -259,21 +269,25 @@ export const Settings: React.FC = () => {
                     type="number"
                     min="0"
                     max="100"
+                    step="0.1"
                     value={settings.autoMode.maxWaterLevel}
-                    onChange={(e) => handleAutoModeSettingsChange('maxWaterLevel', parseInt(e.target.value) || 0)}
+                    onChange={(e) => handleAutoModeSettingsChange('maxWaterLevel', parseFloat(e.target.value) || 0)}
                     className="
                       w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg
                       focus:ring-2 focus:ring-blue-500 focus:border-transparent
                       bg-white dark:bg-gray-700 text-gray-900 dark:text-white
                     "
                   />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Motor turns OFF when water level reaches this value
+                  </p>
                 </div>
               </div>
             </div>
           )}
 
           {/* Manual Mode Settings */}
-          {settings.mode === 'manual' && (
+          {settings.mode === 'Manual Mode' && (
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
               <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
                 Manual Mode Settings
@@ -287,6 +301,7 @@ export const Settings: React.FC = () => {
                       <li>• Use the motor toggle on the dashboard to control the pump</li>
                       <li>• Monitor tank levels carefully to prevent overflow or empty tanks</li>
                       <li>• Ensure proper sensor activation for accurate readings</li>
+                      <li>• Motor control is available in the dashboard when in manual mode</li>
                     </ul>
                   </div>
                 </div>
@@ -296,81 +311,213 @@ export const Settings: React.FC = () => {
 
           {/* Tank Dimensions */}
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-            <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
-              Tank Dimensions
+            <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4 flex items-center space-x-2">
+              <Monitor className="w-5 h-5" />
+              <span>Tank Dimensions</span>
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h3 className="text-md font-medium text-gray-700 dark:text-gray-300 mb-3">
-                  Upper Tank
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Tank A */}
+              <div className="space-y-6">
+                <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600 pb-2">
+                  Tank A
                 </h3>
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                      Height (cm)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    />
+                
+                {/* Upper Tank A */}
+                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                  <h4 className="text-md font-medium text-gray-600 dark:text-gray-400 mb-3">
+                    Upper Tank A
+                  </h4>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        Height (cm)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={settings.tankDimensions.upperTankA.height}
+                        onChange={(e) => handleTankDimensionChange('upperTankA', 'height', parseFloat(e.target.value) || 0)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        Water Full Height (cm)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={settings.tankDimensions.upperTankA.waterFullHeight}
+                        onChange={(e) => handleTankDimensionChange('upperTankA', 'waterFullHeight', parseFloat(e.target.value) || 0)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        Water Empty Height (cm)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={settings.tankDimensions.upperTankA.waterEmptyHeight}
+                        onChange={(e) => handleTankDimensionChange('upperTankA', 'waterEmptyHeight', parseFloat(e.target.value) || 0)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                      Water Full Height (cm)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                      Water Empty Height (cm)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    />
+                </div>
+
+                {/* Lower Tank A */}
+                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                  <h4 className="text-md font-medium text-gray-600 dark:text-gray-400 mb-3">
+                    Lower Tank A
+                  </h4>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        Height (cm)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={settings.tankDimensions.lowerTankA.height}
+                        onChange={(e) => handleTankDimensionChange('lowerTankA', 'height', parseFloat(e.target.value) || 0)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        Water Full Height (cm)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={settings.tankDimensions.lowerTankA.waterFullHeight}
+                        onChange={(e) => handleTankDimensionChange('lowerTankA', 'waterFullHeight', parseFloat(e.target.value) || 0)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        Water Empty Height (cm)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={settings.tankDimensions.lowerTankA.waterEmptyHeight}
+                        onChange={(e) => handleTankDimensionChange('lowerTankA', 'waterEmptyHeight', parseFloat(e.target.value) || 0)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
-              <div>
-                <h3 className="text-md font-medium text-gray-700 dark:text-gray-300 mb-3">
-                  Lower Tank
+
+              {/* Tank B */}
+              <div className="space-y-6">
+                <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600 pb-2">
+                  Tank B
                 </h3>
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                      Height (cm)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    />
+                
+                {/* Upper Tank B */}
+                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                  <h4 className="text-md font-medium text-gray-600 dark:text-gray-400 mb-3">
+                    Upper Tank B
+                  </h4>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        Height (cm)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={settings.tankDimensions.upperTankB.height}
+                        onChange={(e) => handleTankDimensionChange('upperTankB', 'height', parseFloat(e.target.value) || 0)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        Water Full Height (cm)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={settings.tankDimensions.upperTankB.waterFullHeight}
+                        onChange={(e) => handleTankDimensionChange('upperTankB', 'waterFullHeight', parseFloat(e.target.value) || 0)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        Water Empty Height (cm)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={settings.tankDimensions.upperTankB.waterEmptyHeight}
+                        onChange={(e) => handleTankDimensionChange('upperTankB', 'waterEmptyHeight', parseFloat(e.target.value) || 0)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                      Water Full Height (cm)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                      Water Empty Height (cm)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    />
+                </div>
+
+                {/* Lower Tank B */}
+                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                  <h4 className="text-md font-medium text-gray-600 dark:text-gray-400 mb-3">
+                    Lower Tank B
+                  </h4>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        Height (cm)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={settings.tankDimensions.lowerTankB.height}
+                        onChange={(e) => handleTankDimensionChange('lowerTankB', 'height', parseFloat(e.target.value) || 0)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        Water Full Height (cm)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={settings.tankDimensions.lowerTankB.waterFullHeight}
+                        onChange={(e) => handleTankDimensionChange('lowerTankB', 'waterFullHeight', parseFloat(e.target.value) || 0)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        Water Empty Height (cm)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={settings.tankDimensions.lowerTankB.waterEmptyHeight}
+                        onChange={(e) => handleTankDimensionChange('lowerTankB', 'waterEmptyHeight', parseFloat(e.target.value) || 0)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -415,35 +562,193 @@ export const Settings: React.FC = () => {
           </div>
 
           {/* Special Functions */}
-          {settings.mode === 'auto' && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-              <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
-                Special Functions
-              </h2>
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+            <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
+              Special Functions
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <SensorCheckbox
-                checked={settings.autoMode.specialFunctions.autoMode}
-                onChange={handleSpecialFunctionChange}
-                label="Auto Mode"
-                description="Enable automatic system control"
-                color="purple"
+                checked={settings.autoMode.specialFunctions.upperTankOverFlowLock}
+                onChange={(checked) => handleSpecialFunctionChange('upperTankOverFlowLock', checked)}
+                label="Upper Tank Overflow Lock"
+                description="Prevent motor operation when upper tank is overflowing"
+                color="red"
+              />
+              <SensorCheckbox
+                checked={settings.autoMode.specialFunctions.lowerTankOverFlowLock}
+                onChange={(checked) => handleSpecialFunctionChange('lowerTankOverFlowLock', checked)}
+                label="Lower Tank Overflow Lock"
+                description="Prevent motor operation when lower tank is overflowing"
+                color="red"
+              />
+              <SensorCheckbox
+                checked={settings.autoMode.specialFunctions.syncBothTank}
+                onChange={(checked) => handleSpecialFunctionChange('syncBothTank', checked)}
+                label="Sync Both Tanks"
+                description="Synchronize operation between both tank systems"
+                color="blue"
+              />
+              <SensorCheckbox
+                checked={settings.autoMode.specialFunctions.buzzerAlert}
+                onChange={(checked) => handleSpecialFunctionChange('buzzerAlert', checked)}
+                label="Buzzer Alert"
+                description="Enable audible alerts for system events"
+                color="green"
               />
             </div>
-          )}
+          </div>
+
+          {/* WiFi Configuration */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+            <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4 flex items-center space-x-2">
+              <Wifi className="w-5 h-5" />
+              <span>WiFi Configuration</span>
+            </h2>
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-6">
+              <div className="flex items-start space-x-2">
+                <AlertCircle className="w-5 h-5 text-yellow-500 mt-0.5 flex-shrink-0" />
+                <div className="text-sm text-yellow-700 dark:text-yellow-300">
+                  <p className="font-medium mb-1">WiFi Configuration Notice:</p>
+                  <p className="text-xs">
+                    To configure WiFi settings, hold the configuration button on the ESP32 for 3 seconds during startup. 
+                    The device will create a hotspot named "Smart Water Tank v2.0" with password "00000000". 
+                    Connect to this hotspot and navigate to the WiFi settings page.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h3 className="text-md font-medium text-gray-700 dark:text-gray-300 mb-3">
+                  Access Point Mode
+                </h3>
+                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+                  <div className="text-sm text-blue-700 dark:text-blue-300">
+                    <p className="font-medium mb-2">Current AP Settings:</p>
+                    <ul className="space-y-1 text-xs">
+                      <li>• SSID: Smart Water Tank v2.0</li>
+                      <li>• Password: 00000000</li>
+                      <li>• IP: 192.168.1.1</li>
+                      <li>• Gateway: 192.168.1.1</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <h3 className="text-md font-medium text-gray-700 dark:text-gray-300 mb-3">
+                  Station Mode
+                </h3>
+                <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
+                  <div className="text-sm text-green-700 dark:text-green-300">
+                    <p className="font-medium mb-2">Station Mode Features:</p>
+                    <ul className="space-y-1 text-xs">
+                      <li>• Connect to existing WiFi network</li>
+                      <li>• Static IP configuration support</li>
+                      <li>• Custom DNS settings</li>
+                      <li>• Auto-reconnect capability</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* System Information */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+            <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4 flex items-center space-x-2">
+              <SettingsIcon className="w-5 h-5" />
+              <span>System Information</span>
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h3 className="text-md font-medium text-gray-700 dark:text-gray-300 mb-3">
+                  Device Information
+                </h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">MAC Address:</span>
+                    <span className="text-gray-800 dark:text-gray-200 font-mono">
+                      {appState.systemSettings.macAddress ? 
+                        appState.systemSettings.macAddress.map((byte) => 
+                          byte.toString(16).padStart(2, '0').toUpperCase()
+                        ).join(':') : 
+                        'Not Available'
+                      }
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Connection Status:</span>
+                    <span className={`font-medium ${isConnected ? 'text-green-600' : 'text-red-600'}`}>
+                      {isConnected ? 'Connected' : 'Disconnected'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Last Updated:</span>
+                    <span className="text-gray-800 dark:text-gray-200">
+                      {new Date(appState.systemStatus.lastUpdated).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <h3 className="text-md font-medium text-gray-700 dark:text-gray-300 mb-3">
+                  System Status
+                </h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Current Mode:</span>
+                    <span className="text-gray-800 dark:text-gray-200 font-medium">
+                      {appState.systemStatus.mode}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Motor Status:</span>
+                    <span className={`font-medium ${appState.systemStatus.motorStatus === 'ON' ? 'text-green-600' : 'text-gray-600'}`}>
+                      {appState.systemStatus.motorStatus}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Runtime:</span>
+                    <span className="text-gray-800 dark:text-gray-200">
+                      {appState.systemStatus.runtime.toFixed(1)}s
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* Action Buttons */}
           <div className="flex items-center justify-between">
-            <button
-              onClick={handleReset}
-              disabled={!hasChanges}
-              className="
-                flex items-center space-x-2 px-4 py-2 border border-gray-300 dark:border-gray-600
-                text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700
-                transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed
-              "
-            >
-              <RotateCcw className="w-4 h-4" />
-              <span>Reset</span>
-            </button>
+            <div className="flex space-x-3">
+              <button
+                onClick={handleReset}
+                disabled={!hasChanges}
+                className="
+                  flex items-center space-x-2 px-4 py-2 border border-gray-300 dark:border-gray-600
+                  text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700
+                  transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed
+                "
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>Reset</span>
+              </button>
+              
+              <button
+                onClick={() => {
+                  sendMessage({ type: 'systemReset' });
+                }}
+                disabled={!isConnected}
+                className="
+                  flex items-center space-x-2 px-4 py-2 border border-red-300 dark:border-red-600
+                  text-red-700 dark:text-red-300 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20
+                  transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed
+                "
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>Restart System</span>
+              </button>
+            </div>
 
             <div className="text-sm text-gray-500 dark:text-gray-400">
               {hasChanges ? 'You have unsaved changes' : 'All changes saved'}

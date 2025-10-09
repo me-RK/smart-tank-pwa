@@ -6,34 +6,43 @@ export const initialAppState: AppState = {
     lastUpdated: new Date().toISOString(),
     runtime: 0,
     motorStatus: 'OFF',
-    mode: 'auto',
-    autoModeReasons: []
+    mode: 'Manual Mode',
+    autoModeReasons: 'NONE'
   },
   systemSettings: {
-    mode: 'auto',
+    mode: 'Manual Mode',
     autoMode: {
-      minWaterLevel: 20,
-      maxWaterLevel: 80,
+      minWaterLevel: 50,
+      maxWaterLevel: 90,
       specialFunctions: {
-        autoMode: true
+        upperTankOverFlowLock: true,
+        lowerTankOverFlowLock: true,
+        syncBothTank: true,
+        buzzerAlert: true
       }
     },
     manualMode: {
       motorControl: false
     },
     sensors: {
-      lowerTankA: true,
-      lowerTankB: true,
-      upperTankA: true,
-      upperTankB: true
+      lowerTankA: false,
+      lowerTankB: false,
+      upperTankA: false,
+      upperTankB: false
+    },
+    tankDimensions: {
+      upperTankA: { height: 75, waterFullHeight: 70, waterEmptyHeight: 0 },
+      upperTankB: { height: 75, waterFullHeight: 70, waterEmptyHeight: 0 },
+      lowerTankA: { height: 75, waterFullHeight: 70, waterEmptyHeight: 0 },
+      lowerTankB: { height: 75, waterFullHeight: 70, waterEmptyHeight: 0 }
     }
   },
   tankData: {
     tankA: { upper: 0, lower: 0 },
     tankB: { upper: 0, lower: 0 },
     dimensions: {
-      upper: { height: 100, waterFullHeight: 90, waterEmptyHeight: 10 },
-      lower: { height: 100, waterFullHeight: 90, waterEmptyHeight: 10 }
+      upper: { height: 75, waterFullHeight: 70, waterEmptyHeight: 0 },
+      lower: { height: 75, waterFullHeight: 70, waterEmptyHeight: 0 }
     }
   },
   isConnected: false,

@@ -1,53 +1,26 @@
-# Required Libraries for Smart Tank ESP32 Code
+Required Libraries for Smart Tank ESP32:
 
-Install these libraries through Arduino IDE Library Manager:
+1. WebSockets (by Markus Sattler) - Version 2.6.1 or later
+   - Install from: https://github.com/Links2004/arduinoWebSockets
+   - Or via Arduino IDE Library Manager
 
-## Core Libraries
-1. **WebSockets** by Markus Sattler
-   - Version: 2.3.6 or later
-   - Used for: WebSocket server communication with PWA app
-   - Installation: Tools → Manage Libraries → Search "WebSockets"
+2. ArduinoJson (by Benoit Blanchon) - Version 7.4.2 or later
+   - Install from: https://github.com/bblanchon/ArduinoJson
+   - Or via Arduino IDE Library Manager
 
-2. **ArduinoJson** by Benoit Blanchon
-   - Version: 6.21.0 or later
-   - Used for: JSON parsing and generation
-   - Installation: Tools → Manage Libraries → Search "ArduinoJson"
+3. ESP32 Built-in Libraries (included with ESP32 Arduino Core):
+   - WiFi
+   - WebServer
+   - Preferences
+   - LittleFS
+   - esp_now
+   - FS
 
-## ESP32 Built-in Libraries
-These are included with ESP32 core and don't need separate installation:
-
-- **WiFi** - WiFi connectivity
-- **Preferences** - Non-volatile storage
-- **FreeRTOS** - Task management (xTaskCreatePinnedToCore)
-
-## Installation Steps
-
+Installation Instructions:
 1. Open Arduino IDE
-2. Go to Tools → Manage Libraries
-3. Search for each library name
-4. Click Install for the correct library
-5. Restart Arduino IDE after installation
+2. Go to Tools -> Manage Libraries
+3. Search for "WebSockets" and install
+4. Search for "ArduinoJson" and install
+5. Make sure ESP32 Arduino Core is installed (Tools -> Board -> Boards Manager -> search "ESP32")
 
-## Alternative Installation (GitHub)
-
-If Library Manager doesn't work, you can install manually:
-
-### WebSockets Library
-```bash
-git clone https://github.com/Links2004/WebSockets.git
-# Copy to Arduino/libraries/WebSockets/
-```
-
-### ArduinoJson Library
-```bash
-git clone https://github.com/bblanchon/ArduinoJson.git
-# Copy to Arduino/libraries/ArduinoJson/
-```
-
-## Verification
-
-After installation, verify libraries are available:
-1. Go to Sketch → Include Library
-2. Check that "WebSockets" and "ArduinoJson" appear in the list
-3. Try compiling the sketch to ensure no missing library errors
-
+Note: AsyncWebServer library is NOT required. The code uses the built-in WebServer library instead.
