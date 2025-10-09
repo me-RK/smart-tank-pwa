@@ -483,8 +483,9 @@ void onWebSocketEvent(uint8_t client_num, WStype_t type, uint8_t *payload, size_
 
     case WStype_CONNECTED: {
       IPAddress ip = webSocket.remoteIP(client_num);
-      Serial.printf("[%u] Connection from ", client_num);
+      Serial.printf("[%u] WebSocket Connection from ", client_num);
       Serial.println(ip.toString());
+      Serial.println("WebSocket connection established successfully!");
       faultOff();
       doStatusAlert(1, 200, 100);
       break;
@@ -511,7 +512,7 @@ void onWebSocketEvent(uint8_t client_num, WStype_t type, uint8_t *payload, size_
           String passwordLive = doc["PASS"].as<String>();
 
           // Handle WiFi mode configuration
-          if (wifiModeLive == "access_point") {
+          if (wifiModeLive == "AP" || wifiModeLive == "access_point") {
             Serial.println("Access point mode Configuration in nvs Entered.");
             // Set default AP settings
             SIP0 = 192; SIP1 = 168; SIP2 = 1; SIP3 = 1;
@@ -534,8 +535,66 @@ void onWebSocketEvent(uint8_t client_num, WStype_t type, uint8_t *payload, size_
               configs.putString("PASS", passwordLive);
               Serial.println("password Updated at NVS.");
             }
+            
+            // Handle static IP configuration for AP mode
+            if (doc.containsKey("SIP0") && doc.containsKey("SIP1") && doc.containsKey("SIP2") && doc.containsKey("SIP3")) {
+              SIP0 = doc["SIP0"];
+              SIP1 = doc["SIP1"];
+              SIP2 = doc["SIP2"];
+              SIP3 = doc["SIP3"];
+              configs.putUShort("SIP0", SIP0);
+              configs.putUShort("SIP1", SIP1);
+              configs.putUShort("SIP2", SIP2);
+              configs.putUShort("SIP3", SIP3);
+              Serial.println("Static IP Updated at NVS.");
+            }
+            
+            if (doc.containsKey("SG0") && doc.containsKey("SG1") && doc.containsKey("SG2") && doc.containsKey("SG3")) {
+              GW0 = doc["SG0"];
+              GW1 = doc["SG1"];
+              GW2 = doc["SG2"];
+              GW3 = doc["SG3"];
+              configs.putUShort("SG0", GW0);
+              configs.putUShort("SG1", GW1);
+              configs.putUShort("SG2", GW2);
+              configs.putUShort("SG3", GW3);
+              Serial.println("Gateway Updated at NVS.");
+            }
+            
+            if (doc.containsKey("SS0") && doc.containsKey("SS1") && doc.containsKey("SS2") && doc.containsKey("SS3")) {
+              SNM0 = doc["SS0"];
+              SNM1 = doc["SS1"];
+              SNM2 = doc["SS2"];
+              SNM3 = doc["SS3"];
+              configs.putUShort("SS0", SNM0);
+              configs.putUShort("SS1", SNM1);
+              configs.putUShort("SS2", SNM2);
+              configs.putUShort("SS3", SNM3);
+              Serial.println("Subnet Mask Updated at NVS.");
+            }
+            
+            if (doc.containsKey("SPD0") && doc.containsKey("SPD1") && doc.containsKey("SPD2") && doc.containsKey("SPD3")) {
+              PDNS0 = doc["SPD0"];
+              PDNS1 = doc["SPD1"];
+              PDNS2 = doc["SPD2"];
+              PDNS3 = doc["SPD3"];
+              configs.putUShort("SPD0", PDNS0);
+              configs.putUShort("SPD1", PDNS1);
+              configs.putUShort("SPD2", PDNS2);
+              configs.putUShort("SPD3", PDNS3);
+              Serial.println("Primary DNS Updated at NVS.");
+            }
+            
             configs.end();
-          } else if (wifiModeLive == "station") {
+            
+            // Send success response
+            JsonDocument response;
+            response["status"] = "success";
+            response["message"] = "WiFi configuration saved successfully";
+            String responseStr;
+            serializeJson(response, responseStr);
+            webSocket.sendTXT(clientNumGlobal, responseStr);
+          } else if (wifiModeLive == "STA" || wifiModeLive == "station") {
             Serial.println("Station mode Configuration in nvs Entered.");
             // Handle station mode configuration with static IP
             configs.begin("configData", RW_MODE);
@@ -554,7 +613,65 @@ void onWebSocketEvent(uint8_t client_num, WStype_t type, uint8_t *payload, size_
               configs.putString("PASS", passwordLive);
               Serial.println("password Updated at NVS.");
             }
+            
+            // Handle static IP configuration for STA mode
+            if (doc.containsKey("SIP0") && doc.containsKey("SIP1") && doc.containsKey("SIP2") && doc.containsKey("SIP3")) {
+              SIP0 = doc["SIP0"];
+              SIP1 = doc["SIP1"];
+              SIP2 = doc["SIP2"];
+              SIP3 = doc["SIP3"];
+              configs.putUShort("SIP0", SIP0);
+              configs.putUShort("SIP1", SIP1);
+              configs.putUShort("SIP2", SIP2);
+              configs.putUShort("SIP3", SIP3);
+              Serial.println("Static IP Updated at NVS.");
+            }
+            
+            if (doc.containsKey("SG0") && doc.containsKey("SG1") && doc.containsKey("SG2") && doc.containsKey("SG3")) {
+              GW0 = doc["SG0"];
+              GW1 = doc["SG1"];
+              GW2 = doc["SG2"];
+              GW3 = doc["SG3"];
+              configs.putUShort("SG0", GW0);
+              configs.putUShort("SG1", GW1);
+              configs.putUShort("SG2", GW2);
+              configs.putUShort("SG3", GW3);
+              Serial.println("Gateway Updated at NVS.");
+            }
+            
+            if (doc.containsKey("SS0") && doc.containsKey("SS1") && doc.containsKey("SS2") && doc.containsKey("SS3")) {
+              SNM0 = doc["SS0"];
+              SNM1 = doc["SS1"];
+              SNM2 = doc["SS2"];
+              SNM3 = doc["SS3"];
+              configs.putUShort("SS0", SNM0);
+              configs.putUShort("SS1", SNM1);
+              configs.putUShort("SS2", SNM2);
+              configs.putUShort("SS3", SNM3);
+              Serial.println("Subnet Mask Updated at NVS.");
+            }
+            
+            if (doc.containsKey("SPD0") && doc.containsKey("SPD1") && doc.containsKey("SPD2") && doc.containsKey("SPD3")) {
+              PDNS0 = doc["SPD0"];
+              PDNS1 = doc["SPD1"];
+              PDNS2 = doc["SPD2"];
+              PDNS3 = doc["SPD3"];
+              configs.putUShort("SPD0", PDNS0);
+              configs.putUShort("SPD1", PDNS1);
+              configs.putUShort("SPD2", PDNS2);
+              configs.putUShort("SPD3", PDNS3);
+              Serial.println("Primary DNS Updated at NVS.");
+            }
+            
             configs.end();
+            
+            // Send success response
+            JsonDocument response;
+            response["status"] = "success";
+            response["message"] = "WiFi configuration saved successfully";
+            String responseStr;
+            serializeJson(response, responseStr);
+            webSocket.sendTXT(clientNumGlobal, responseStr);
           }
         } else {
           // Handle system configuration
@@ -957,20 +1074,20 @@ void setup() {
     configs.putString("PASS", "00000000");
     configs.putUShort("SIP0", 192);
     configs.putUShort("SIP1", 168);
-    configs.putUShort("SIP2", 1);
-    configs.putUShort("SIP3", 1);
+    configs.putUShort("SIP2", 179);
+    configs.putUShort("SIP3", 250);
     configs.putUShort("SG0", 192);
     configs.putUShort("SG1", 168);
-    configs.putUShort("SG2", 1);
-    configs.putUShort("SG3", 1);
+    configs.putUShort("SG2", 179);
+    configs.putUShort("SG3", 174);
     configs.putUShort("SS0", 255);
     configs.putUShort("SS1", 255);
     configs.putUShort("SS2", 255);
     configs.putUShort("SS3", 0);
-    configs.putUShort("SPD0", 8);
-    configs.putUShort("SPD1", 8);
-    configs.putUShort("SPD2", 8);
-    configs.putUShort("SPD3", 8);
+    configs.putUShort("SPD0", 192);
+    configs.putUShort("SPD1", 168);
+    configs.putUShort("SPD2", 179);
+    configs.putUShort("SPD3", 174);
     configs.putUShort("SSD0", 8);
     configs.putUShort("SSD1", 8);
     configs.putUShort("SSD2", 4);
@@ -1046,7 +1163,7 @@ void setup() {
 
   doBuzzerAlert(1, 1000, 500);
 
-  // Check configuration button
+  // Check configuration button (exactly like old firmware)
   if (digitalRead(configPin) == false) {
     unsigned long initTime = millis();
     while ((millis() - initTime) <= 3000) {
@@ -1080,8 +1197,10 @@ void setup() {
     server.onNotFound(onPageNotFound);
     server.begin();
 
+    Serial.println("Starting WebSocket server in config mode on port 81...");
     webSocket.begin();
     webSocket.onEvent(onWebSocketEvent);
+    Serial.println("WebSocket server started successfully in config mode!");
     while (configMode) {
       webSocket.loop();
       server.handleClient();
@@ -1172,8 +1291,10 @@ void setup() {
   server.begin();
 
   // Start WebSocket server
+  Serial.println("Starting WebSocket server on port 81...");
   webSocket.begin();
   webSocket.onEvent(onWebSocketEvent);
+  Serial.println("WebSocket server started successfully!");
 
   // Create tasks
   xTaskCreatePinnedToCore(
@@ -1207,6 +1328,40 @@ void setup() {
   );
 
   Serial.println("System initialized!");
+  
+  // Print IP addresses and WiFi status
+  Serial.println("=== WiFi Status ===");
+  Serial.print("WiFi Mode: ");
+  Serial.println(wifiMode);
+  Serial.print("SSID: ");
+  Serial.println(ssid);
+  Serial.print("Password: ");
+  Serial.println(password);
+  
+  if (configMode) {
+    Serial.println("Config Mode Active");
+    Serial.print("AP Mode - IP Address: ");
+    Serial.println(WiFi.softAPIP());
+    Serial.print("WebSocket Server running on: ws://");
+    Serial.print(WiFi.softAPIP());
+    Serial.println(":81");
+  } else {
+    if (wifiMode == "STA") {
+      Serial.print("Station Mode - IP Address: ");
+      Serial.println(WiFi.localIP());
+      Serial.print("WebSocket Server running on: ws://");
+      Serial.print(WiFi.localIP());
+      Serial.println(":81");
+    } else if (wifiMode == "AP") {
+      Serial.print("AP Mode - IP Address: ");
+      Serial.println(WiFi.softAPIP());
+      Serial.print("WebSocket Server running on: ws://");
+      Serial.print(WiFi.softAPIP());
+      Serial.println(":81");
+    }
+  }
+  Serial.println("==================");
+  
   digitalWrite(statusPin, HIGH);
 }
 

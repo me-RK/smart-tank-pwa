@@ -1,435 +1,244 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wi-Fi Config</title>
+    <title>Smart Water Tank - WiFi Config</title>
     <style>
-        /* General styles */
         body {
             font-family: Arial, sans-serif;
-            text-align: center;
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh;
-            /* Set the minimum height of the body to the full viewport height */
             margin: 0;
-            padding: 0;
-            background: linear-gradient(to bottom, #e2f2fd, #f5f5f5);
-            /* Gradient background for the body */
-        }
-
-        header {
-            background-color: #ffffff;
-            color: #178ce7;
-            padding: 10px;
-            text-align: center;
-            /* Center-align the text in the header */
-        }
-
-        /* Content styles */
-        .content {
-            flex: 1;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 1rem;
-        }
-
-        /* Form container styles */
-        .form {
-            width: 100%;
-            max-width: 300px;
             padding: 20px;
-            margin: 20px auto;
-            border-radius: 5px;
-            background-color: #f7f7f7;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+            background: #f5f5f5;
         }
-
-        /* Form input styles */
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
         label {
             display: block;
             margin-bottom: 5px;
-        }
-
-        select,
-        input[type="text"],
-        input[type="password"],
-        input[type="number"] {
-            width: 100%;
-            padding: 8px;
-            margin-bottom: 10px;
-            border: 1px solid #ccc;
-            border-radius: 3px;
-        }
-
-        .ip-input-row {
-            display: flex;
-            align-items: center;
-        }
-
-        .ip-input-row input {
-            width: 25%;
-            margin: 0;
-            border: none;
-            text-align: center;
-        }
-
-        .ip-input-row span {
-            margin: 0 5px;
             font-weight: bold;
-        }
-
-        /* Footer styles */
-        footer {
-            background-color: #f0f0f0;
             color: #555;
-            padding: 10px;
-            /* position: sticky; */
-            bottom: 0;
         }
-
-        .footer-content {
-            position: relative;
-            z-index: 1;
-        }
-
-        footer p {
-            margin: 0;
-            text-align: center;
-        }
-
-        footer svg {
-            position: absolute;
-            bottom: 0;
-            left: 0;
+        select, input {
             width: 100%;
-            height: 100%;
-            pointer-events: none;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
         }
-
-        /* Button styles */
+        .static-ip {
+            display: none;
+        }
+        .static-ip.show {
+            display: block;
+        }
         button {
-            background-color: #2196F3;
-            color: #fff;
+            width: 100%;
+            padding: 12px;
+            background: #007bff;
+            color: white;
             border: none;
-            padding: 8px 16px;
             border-radius: 4px;
             cursor: pointer;
-            font-weight: bold;
+            font-size: 16px;
+            margin-top: 10px;
         }
-
         button:hover {
-            background-color: #1976D2;
+            background: #0056b3;
         }
-
-        /* Media queries */
-        @media screen and (max-width: 600px) {
-            header h2 {
-                font-size: 18px;
-            }
-
-            .content {
-                padding: 10px;
-            }
-
-            footer {
-                padding: 5px;
-            }
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
         }
-
-        @media screen and (max-width: 400px) {
-            header h2 {
-                font-size: 16px;
-            }
-
-            .content {
-                padding: 5px;
-            }
-
-            footer {
-                padding: 3px;
-            }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
         }
     </style>
-    <script language="javascript" type="text/javascript">
-
-        var url = "ws://" + window.location.hostname + ":1337/";
-
-        // Connect to WebSocket server
-        wsConnect(url);
-
-
-        // Sends a message to the server (and prints it to the console)
-        function doSend(message) {
-            console.log("Sending: " + message);
-            websocket.send(message);
-        }
-
-        // This is called when the page finishes loading
-        function init() {
-            toggleFields();
-        }
-
-        // Called when the WebSocket connection is closed
-        function onClose(evt) {
-
-            // Log disconnection state
-            console.log("Disconnected");
-
-            // Try to reconnect after a few seconds
-            setTimeout(function () { wsConnect(url) }, 2000);
-            updateLogs("WebSocket connection closed");
-        }
-
-        function onMessage(evt) {
-            // Print out our received message
-            console.log("Received: " + evt.data);
-        }
-
-        // Called when a WebSocket error occurs
-        function onError(evt) {
-            console.log("ERROR: " + evt.data);
-            
-        }
-
-        // Call this to connect to the WebSocket server
-        function wsConnect(url) {
-
-            // Connect to WebSocket server
-            websocket = new WebSocket(url);
-
-            // Assign callbacks
-            websocket.onopen = function (evt) { onOpen(evt) };
-            websocket.onclose = function (evt) { onClose(evt) };
-            websocket.onmessage = function (evt) { onMessage(evt) };
-            websocket.onerror = function (evt) { onError(evt) };
-        }
-
-        // Called when a WebSocket connection is established with the server
-        function onOpen(evt) {
-            console.log("Connected");
-            init();
-        }
-
-        function toggleFields() {
-            var mode = document.getElementById("mode").value;
-            var staticIpFields = document.getElementById("staticIpFields");
-            var gatewayMessage = document.getElementById("gatewayMessage"); // Get the message element
-
-            if (mode === "station") {
-                staticIpFields.style.display = "block";
-                gatewayMessage.style.display = "none"; // Hide the message
-            } else {
-                staticIpFields.style.display = "none";
-                gatewayMessage.style.display = "block"; // Show the message
-            }
-        }
-
-
-        function updateSettings() {
-            var formData = {
-                MODE: document.getElementById("mode").value,
-                SSID: document.getElementById("ssid").value,
-                PASS: document.getElementById("password").value
-            };
-
-            // Include additional data based on the selected mode
-            if (formData.MODE === "station") {
-                formData.SIP = [
-                    parseInt(document.getElementById("ipPart1").value),
-                    parseInt(document.getElementById("ipPart2").value),
-                    parseInt(document.getElementById("ipPart3").value),
-                    parseInt(document.getElementById("ipPart4").value)
-                ];
-                formData.GW = [
-                    parseInt(document.getElementById("gateway1").value),
-                    parseInt(document.getElementById("gateway2").value),
-                    parseInt(document.getElementById("gateway3").value),
-                    parseInt(document.getElementById("gateway4").value)
-                ];
-                formData.SNM = [
-                    parseInt(document.getElementById("subnet1").value),
-                    parseInt(document.getElementById("subnet2").value),
-                    parseInt(document.getElementById("subnet3").value),
-                    parseInt(document.getElementById("subnet4").value)
-                ];
-                formData.PDNS = [
-                    parseInt(document.getElementById("primaryDns1").value),
-                    parseInt(document.getElementById("primaryDns2").value),
-                    parseInt(document.getElementById("primaryDns3").value),
-                    parseInt(document.getElementById("primaryDns4").value)
-                ];
-                formData.SDNS = [
-                    parseInt(document.getElementById("secondaryDns1").value),
-                    parseInt(document.getElementById("secondaryDns2").value),
-                    parseInt(document.getElementById("secondaryDns3").value),
-                    parseInt(document.getElementById("secondaryDns4").value)
-                ];
-
-                var textData = `
-    Mode: ${formData.MODE}
-    SSID: ${formData.SSID}
-    Password: ${formData.PASS}
-    Static IP: ${formData.SIP.join('.')}
-    Gateway: ${formData.GW.join('.')}
-    Subnet Mask: ${formData.SNM.join('.')}
-    Primary DNS: ${formData.PDNS.join('.')}
-    Secondary DNS: ${formData.SDNS.join('.')}
-    `;
-            }
-            else if (formData.MODE === "access_point") {
-                var textData = `
-    Mode: ${formData.MODE}
-    SSID: ${formData.SSID}
-    Password: ${formData.PASS}
-    `;
-            }
-
-            var jsonString = JSON.stringify(formData);
-            console.log(jsonString);
-
-
-            // Ask for confirmation
-            var isConfirmed = confirm("Are you sure you want to update with the following data?\n\n" + textData);
-
-            if (isConfirmed) {
-                // Display a message and clear the screen
-                doSend(jsonString);
-                alert("Your device will restart now.");
-                clearForm();
-                setTimeout(() => {
-                    doSend("systemReset");
-                }, 2000);
-                
-                
-            }
-        }
-
-        function clearForm() {
-            // Clear the form inputs
-            document.getElementById("ssid").value = "";
-            document.getElementById("password").value = "";
-            document.getElementById("ipPart1").value = "";
-            document.getElementById("ipPart2").value = "";
-            document.getElementById("ipPart3").value = "";
-            document.getElementById("ipPart4").value = "";
-            // ... (clear other inputs as needed)
-
-            // Hide the confirmation message
-            document.getElementById("gatewayMessage").style.display = "none";
-        }
-
-
-    </script>
 </head>
-
 <body>
-    <!-- Header section -->
-    <header>
-        <h1>Wi-Fi Configuration</h1>
-    </header>
+    <div class="container">
+        <h1>WiFi Configuration</h1>
+        
+        <form id="wifiForm">
+            <div class="form-group">
+                <label for="wifiMode">WiFi Mode:</label>
+                <select id="wifiMode" name="wifiMode" onchange="toggleStaticIP()">
+                    <option value="AP">Access Point (AP)</option>
+                    <option value="STA">Station (STA)</option>
+                </select>
+            </div>
 
-    <!-- Content section -->
-    <div class="content">
-        <!-- Form container -->
-        <div class="form">
-            <!-- Form content -->
-            <form id="wifiForm">
-                <!-- Form inputs -->
-                <label for="mode">Select Wi-Fi Mode:</label>
-                <select id="mode" name="mode" onchange="toggleFields()">
-                    <option value="access_point">Access Point Mode</option>
-                    <option value="station">Station Mode</option>
-                </select><br>
-
+            <div class="form-group">
                 <label for="ssid">SSID:</label>
-                <input type="text" id="ssid" name="ssid" value="Smart Water Tank V1.0"><br>
+                <input type="text" id="ssid" name="ssid" value="Smart Water Tank v2.0" required>
+            </div>
 
+            <div class="form-group">
                 <label for="password">Password:</label>
-                <input type="password" id="password" name="password"><br><br>
+                <input type="password" id="password" name="password" value="00000000" required>
+            </div>
 
-                <div id="staticIpFields">
-                    <label for="ipPart1">Static IP:</label>
-                    <div class="ip-input-row">
-                        <input type="number" id="ipPart1" name="ipPart1" min="0" max="255" >
-                        <span>.</span>
-                        <input type="number" id="ipPart2" name="ipPart2" min="0" max="255" >
-                        <span>.</span>
-                        <input type="number" id="ipPart3" name="ipPart3" min="0" max="255" >
-                        <span>.</span>
-                        <input type="number" id="ipPart4" name="ipPart4" min="0" max="255">
-                    </div>
-                    <br>
+            <div class="form-group">
+                <label for="ipType">IP Configuration:</label>
+                <select id="ipType" name="ipType" onchange="toggleStaticIP()">
+                    <option value="dynamic">Dynamic IP (DHCP)</option>
+                    <option value="static">Static IP</option>
+                </select>
+            </div>
 
+            <div id="staticIPFields" class="static-ip">
+                <div class="form-group">
+                    <label for="ipAddress">IP Address:</label>
+                    <input type="text" id="ipAddress" name="ipAddress" placeholder="192.168.1.100">
+                </div>
+                <div class="form-group">
                     <label for="gateway">Gateway:</label>
-                    <div class="ip-input-row">
-                        <input type="number" id="gateway1" name="gateway1" min="0" max="255" >
-                        <span>.</span>
-                        <input type="number" id="gateway2" name="gateway2" min="0" max="255" >
-                        <span>.</span>
-                        <input type="number" id="gateway3" name="gateway3" min="0" max="255">
-                        <span>.</span>
-                        <input type="number" id="gateway4" name="gateway4" min="0" max="255">
-                    </div>
-                    <br>
-
+                    <input type="text" id="gateway" name="gateway" placeholder="192.168.1.1">
+                </div>
+                <div class="form-group">
                     <label for="subnet">Subnet Mask:</label>
-                    <div class="ip-input-row">
-                        <input type="number" id="subnet1" name="subnet1" min="0" max="255" >
-                        <span>.</span>
-                        <input type="number" id="subnet2" name="subnet2" min="0" max="255" >
-                        <span>.</span>
-                        <input type="number" id="subnet3" name="subnet3" min="0" max="255" >
-                        <span>.</span>
-                        <input type="number" id="subnet4" name="subnet4" min="0" max="255" >
-                    </div>
-                    <br>
-
-                    <label for="primaryDns">Primary DNS: (opt)</label>
-                    <div class="ip-input-row">
-                        <input type="number" id="primaryDns1" name="primaryDns1" min="0" max="255" value="8">
-                        <span>.</span>
-                        <input type="number" id="primaryDns2" name="primaryDns2" min="0" max="255" value="8">
-                        <span>.</span>
-                        <input type="number" id="primaryDns3" name="primaryDns3" min="0" max="255" value="8">
-                        <span>.</span>
-                        <input type="number" id="primaryDns4" name="primaryDns4" min="0" max="255" value="8">
-                    </div>
-                    <br>
-
-                    <label for="secondaryDns">Secondary DNS: (opt)</label>
-                    <div class="ip-input-row">
-                        <input type="number" id="secondaryDns1" name="secondaryDns1" min="0" max="255" value="8">
-                        <span>.</span>
-                        <input type="number" id="secondaryDns2" name="secondaryDns2" min="0" max="255" value="8">
-                        <span>.</span>
-                        <input type="number" id="secondaryDns3" name="secondaryDns3" min="0" max="255" value="4">
-                        <span>.</span>
-                        <input type="number" id="secondaryDns4" name="secondaryDns4" min="0" max="255" value="4">
-                    </div>
-                    <br>
-                    Note: Change the fields as per your need.
+                    <input type="text" id="subnet" name="subnet" placeholder="255.255.255.0">
                 </div>
-
-                <div id="gatewayMessage" style="display: none;">
-                    Note: Your default gateway will be 192.168.1.1.
+                <div class="form-group">
+                    <label for="dns1">Primary DNS:</label>
+                    <input type="text" id="dns1" name="dns1" placeholder="8.8.8.8">
                 </div>
+            </div>
 
-                <br>
-            </form>
-            <button type="button" onclick="updateSettings()">Update</button>
-        </div>
+            <button type="submit">Save Configuration</button>
+        </form>
+
+        <div id="status"></div>
     </div>
 
-    <!-- Footer section -->
-    <footer>
-        <div class="footer-content">
-            <p>&copy; <b>EMPTY IDEA &trade;.</b> <i>All Rights Reserved</i></p>
-        </div>
-    </footer>
-</body>
+    <script>
+        let ws;
 
+        function toggleStaticIP() {
+            const ipType = document.getElementById('ipType').value;
+            const staticFields = document.getElementById('staticIPFields');
+            
+            if (ipType === 'static') {
+                staticFields.classList.add('show');
+            } else {
+                staticFields.classList.remove('show');
+            }
+        }
+
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+        }
+
+        function connectWebSocket() {
+            ws = new WebSocket('ws://192.168.1.1:81');
+            
+            ws.onopen = function() {
+                console.log('WebSocket connected');
+                showStatus('Connected to device', 'success');
+            };
+            
+            ws.onmessage = function(event) {
+                console.log('Received:', event.data);
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.status === 'success') {
+                        showStatus('Configuration saved successfully! Device will restart...', 'success');
+                        setTimeout(() => {
+                            showStatus('Please wait for device restart...', 'success');
+                        }, 2000);
+                    } else if (data.status === 'error') {
+                        showStatus('Error: ' + data.message, 'error');
+                    }
+                } catch (e) {
+                    console.log('Non-JSON message:', event.data);
+                }
+            };
+            
+            ws.onerror = function(error) {
+                console.error('WebSocket error:', error);
+                showStatus('Connection error. Please check if device is running.', 'error');
+            };
+            
+            ws.onclose = function() {
+                console.log('WebSocket disconnected');
+                showStatus('Connection lost', 'error');
+            };
+        }
+
+        function sendConfiguration() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                showStatus('Not connected to device', 'error');
+                return;
+            }
+
+            const formData = {
+                MODE: document.getElementById('wifiMode').value,
+                SSID: document.getElementById('ssid').value,
+                PASS: document.getElementById('password').value,
+                IPType: document.getElementById('ipType').value
+            };
+
+            // Add static IP fields if static IP is selected
+            if (formData.IPType === 'static') {
+                formData.SIP0 = parseInt(document.getElementById('ipAddress').value.split('.')[0]);
+                formData.SIP1 = parseInt(document.getElementById('ipAddress').value.split('.')[1]);
+                formData.SIP2 = parseInt(document.getElementById('ipAddress').value.split('.')[2]);
+                formData.SIP3 = parseInt(document.getElementById('ipAddress').value.split('.')[3]);
+                
+                formData.SG0 = parseInt(document.getElementById('gateway').value.split('.')[0]);
+                formData.SG1 = parseInt(document.getElementById('gateway').value.split('.')[1]);
+                formData.SG2 = parseInt(document.getElementById('gateway').value.split('.')[2]);
+                formData.SG3 = parseInt(document.getElementById('gateway').value.split('.')[3]);
+                
+                formData.SS0 = parseInt(document.getElementById('subnet').value.split('.')[0]);
+                formData.SS1 = parseInt(document.getElementById('subnet').value.split('.')[1]);
+                formData.SS2 = parseInt(document.getElementById('subnet').value.split('.')[2]);
+                formData.SS3 = parseInt(document.getElementById('subnet').value.split('.')[3]);
+                
+                formData.SPD0 = parseInt(document.getElementById('dns1').value.split('.')[0]);
+                formData.SPD1 = parseInt(document.getElementById('dns1').value.split('.')[1]);
+                formData.SPD2 = parseInt(document.getElementById('dns1').value.split('.')[2]);
+                formData.SPD3 = parseInt(document.getElementById('dns1').value.split('.')[3]);
+            }
+
+            ws.send(JSON.stringify(formData));
+            showStatus('Sending configuration...', 'success');
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            connectWebSocket();
+            
+            document.getElementById('wifiForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                sendConfiguration();
+            });
+        });
+    </script>
+</body>
 </html>
