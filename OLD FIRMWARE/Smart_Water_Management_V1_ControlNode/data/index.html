@@ -1,0 +1,1298 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SWT V1.0</title>
+    <style>
+        /* Additional styles for the header and footer */
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            /* Set the minimum height of the body to the full viewport height */
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(to bottom, #e2f2fd, #f0f0f0);
+            /* Gradient background for the body */
+
+        }
+
+        header {
+            background-color: #ffffff;
+            
+            padding: 1px;
+            padding-left: 5%;
+            padding-right: 5%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .content {
+            flex: 1;
+            margin-top: 5px;
+            margin-bottom: 10%;
+        }
+
+        footer {
+            position: relative;
+            background-color: #f0f0f0;
+            color: #555;
+            padding: 10px;
+        }
+
+        .footer-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        footer p {
+            margin: 0;
+            text-align: center;
+        }
+
+        footer svg {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        input[type="range"] {
+            width: 200px;
+        }
+
+        ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        li {
+            display: inline-block;
+            margin-left: 20px;
+        }
+
+        a {
+            text-decoration: none;
+            color: #535353;
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        button {
+            background-color: #2196F3;
+            color: #fff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background-color: #6e6d6d;
+            background-color: #1976D2;
+        }
+
+        .dashboard-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .autoManual {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .dashboard-table {
+            width: 100%;
+            table-layout: fixed;
+            margin-bottom: 20px;
+            margin-top: 20px;
+
+        }
+
+        .dashboard-setting {
+            width: 100%;
+            table-layout: fixed;
+            margin-bottom: 20px;
+            margin-top: 20px;
+
+        }
+
+        .dashboard-setting td {
+            text-align: center;
+            background-color: #f5f5f5;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+
+        }
+
+        .dashboard-table td {
+
+            text-align: center;
+            background-color: #f5f5f5;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 80px;
+            height: 40px;
+            cursor: pointer;
+        }
+
+        .toggle-switch input[type="checkbox"] {
+            display: none;
+        }
+
+        .toggle-switch-background {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #ddd;
+            border-radius: 20px;
+            box-shadow: inset 0 0 0 2px #ccc;
+            transition: background-color 0.3s ease-in-out;
+        }
+
+        .toggle-switch-handle {
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            width: 30px;
+            height: 30px;
+            background-color: #fff;
+            border-radius: 50%;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease-in-out;
+        }
+
+        .toggle-switch::before {
+            content: "";
+            position: absolute;
+            top: -25px;
+            right: -35px;
+            font-size: 12px;
+            font-weight: bold;
+            color: #aaa;
+            text-shadow: 1px 1px #fff;
+            transition: color 0.3s ease-in-out;
+        }
+
+        .toggle-switch input[type="checkbox"]:checked+.toggle-switch-handle {
+            transform: translateX(45px);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2), 0 0 0 3px #05c46b;
+        }
+
+        .toggle-switch input[type="checkbox"]:checked+.toggle-switch-background {
+            background-color: #05c46b;
+            box-shadow: inset 0 0 0 2px #04b360;
+        }
+
+        .toggle-switch input[type="checkbox"]:checked+.toggle-switch:before {
+            content: "On";
+            color: #05c46b;
+            right: -15px;
+        }
+
+        .toggle-switch input[type="checkbox"]:checked+.toggle-switch-background .toggle-switch-handle {
+            transform: translateX(40px);
+        }
+
+        /* checkbox settings 👇 */
+
+        .ui-checkbox {
+            --primary-color: #1677ff;
+            --secondary-color: #fff;
+            --primary-hover-color: #4096ff;
+            /* checkbox */
+            --checkbox-diameter: 20px;
+            --checkbox-border-radius: 5px;
+            --checkbox-border-color: #d9d9d9;
+            --checkbox-border-width: 1px;
+            --checkbox-border-style: solid;
+            /* checkmark */
+            --checkmark-size: 1.2;
+        }
+
+        .ui-checkbox,
+        .ui-checkbox *,
+        .ui-checkbox *::before,
+        .ui-checkbox *::after {
+            -webkit-box-sizing: border-box;
+            box-sizing: border-box;
+        }
+
+        .ui-checkbox {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            width: var(--checkbox-diameter);
+            height: var(--checkbox-diameter);
+            border-radius: var(--checkbox-border-radius);
+            background: var(--secondary-color);
+            border: var(--checkbox-border-width) var(--checkbox-border-style) var(--checkbox-border-color);
+            -webkit-transition: all 0.3s;
+            -o-transition: all 0.3s;
+            transition: all 0.3s;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .ui-checkbox::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            -webkit-box-shadow: 0 0 0 calc(var(--checkbox-diameter) / 2.5) var(--primary-color);
+            box-shadow: 0 0 0 calc(var(--checkbox-diameter) / 2.5) var(--primary-color);
+            border-radius: inherit;
+            opacity: 0;
+            -webkit-transition: all 0.5s cubic-bezier(0.12, 0.4, 0.29, 1.46);
+            -o-transition: all 0.5s cubic-bezier(0.12, 0.4, 0.29, 1.46);
+            transition: all 0.5s cubic-bezier(0.12, 0.4, 0.29, 1.46);
+        }
+
+        .ui-checkbox::before {
+            top: 40%;
+            left: 50%;
+            content: "";
+            position: absolute;
+            width: 4px;
+            height: 7px;
+            border-right: 2px solid var(--secondary-color);
+            border-bottom: 2px solid var(--secondary-color);
+            -webkit-transform: translate(-50%, -50%) rotate(45deg) scale(0);
+            -ms-transform: translate(-50%, -50%) rotate(45deg) scale(0);
+            transform: translate(-50%, -50%) rotate(45deg) scale(0);
+            opacity: 0;
+            -webkit-transition: all 0.1s cubic-bezier(0.71, -0.46, 0.88, 0.6), opacity 0.1s;
+            -o-transition: all 0.1s cubic-bezier(0.71, -0.46, 0.88, 0.6), opacity 0.1s;
+            transition: all 0.1s cubic-bezier(0.71, -0.46, 0.88, 0.6), opacity 0.1s;
+        }
+
+        /* actions */
+        .mac-input-row {
+            display: flex;
+            align-items: center;
+        }
+
+        .mac-input-row input {
+            width: 20px;
+            margin: 1px;
+            border: none;
+            text-align: center;
+        }
+
+        .mac-input-row span {
+            margin: 0 5px;
+            font-weight: bold;
+        }
+
+
+        .ui-ccheckbox:hover {
+            border-color: var(--primary-color);
+        }
+
+        .ui-ccheckbox:checked {
+            background: var(--primary-color);
+            border-color: transparent;
+        }
+
+        .ui-ccheckbox:checked::before {
+            opacity: 1;
+            -webkit-transform: translate(-50%, -50%) rotate(45deg) scale(var(--checkmark-size));
+            -ms-transform: translate(-50%, -50%) rotate(45deg) scale(var(--checkmark-size));
+            transform: translate(-50%, -50%) rotate(45deg) scale(var(--checkmark-size));
+            -webkit-transition: all 0.2s cubic-bezier(0.12, 0.4, 0.29, 1.46) 0.1s;
+            -o-transition: all 0.2s cubic-bezier(0.12, 0.4, 0.29, 1.46) 0.1s;
+            transition: all 0.2s cubic-bezier(0.12, 0.4, 0.29, 1.46) 0.1s;
+        }
+
+        .ui-ccheckbox:active:not(:checked)::after {
+            -webkit-transition: none;
+            -o-transition: none;
+            -webkit-box-shadow: none;
+            box-shadow: none;
+            transition: none;
+            opacity: 1;
+        }
+
+        /* Add media query for screens with a width of 600px or less */
+        @media screen and (max-width: 600px) {
+
+            /* Adjust header styles */
+            header h2 {
+                font-size: 18px;
+            }
+
+            /* Adjust content styles */
+            .content {
+                padding: 10px;
+            }
+
+            /* Adjust footer styles */
+            footer {
+                padding: 5px;
+            }
+
+            /* Add more responsive styles as needed */
+        }
+
+        /* Add media query for screens with a width of 400px or less */
+        @media screen and (max-width: 400px) {
+
+            /* Adjust header styles further for smaller screens */
+            header h2 {
+                font-size: 16px;
+            }
+
+            /* Adjust content styles further for smaller screens */
+            .content {
+                padding: 5px;
+            }
+
+            /* Adjust footer styles further for smaller screens */
+            footer {
+                padding: 3px;
+            }
+
+            /* Add more responsive styles as needed */
+        }
+    </style>
+
+    <script language="javascript" type="text/javascript">
+
+        var url = "ws://" + window.location.hostname + ":1337/";
+        let currentSystemStatus = ""; // Initialize with an empty value
+        var nIntervId;
+        let homePageRefreshRate = 5000; // 5sec
+        let webSocketReConnectRate = 2000; // 1sec
+
+        let lowerSensorAEnable = true;
+        let lowerSensorBEnable = false;
+        let upperSensorAEnable = true;
+        let upperSensorBEnable = true;
+        // Connect to WebSocket server
+        wsConnect(url);
+
+
+
+        function handleSystemModeChange() {
+            var systemMode = document.getElementById("systemMode").value;
+            const autoSettings = document.getElementById("autoSettings");
+            const manualSettings = document.getElementById("manualSettings");
+
+            if (systemMode === "Auto Mode") {
+                autoSettings.style.display = "block";
+                manualSettings.style.display = "none";
+            } else if (systemMode === "Manual Mode") { // if (systemMode === "Manual Mode")
+                autoSettings.style.display = "none";
+                manualSettings.style.display = "block";
+                // console.log("Manual Mode- handle systemchange");
+            }
+        }
+
+        function activationChange() {
+
+            if (document.getElementById("Special_Function_5").checked) {
+                document.getElementById("lowerASetting").style.display = "block";
+            } else {
+                document.getElementById("lowerASetting").style.display = "none";
+            }
+
+            if (document.getElementById("Special_Function_6").checked) {
+                document.getElementById("lowerBSetting").style.display = "block";
+            } else {
+                document.getElementById("lowerBSetting").style.display = "none";
+            }
+        }
+
+        // Function to set the log limit
+        function setLogLimit() {
+            const logLimitInput = document.getElementById("logLimitInput");
+            const newLogLimit = parseInt(logLimitInput.value);
+
+            if (!isNaN(newLogLimit) && newLogLimit >= 1) {
+                const oldLogLimit = logLimit;
+                logLimit = newLogLimit;
+
+                if (logLimit > oldLogLimit) {
+                    // console.log(`Log limit increased to ${logLimit}`);
+                } else if (logLimit < oldLogLimit) {
+                    // Trim logs if necessary
+                    logs = logs.slice(-logLimit);
+                    // console.log(`Log limit decreased to ${logLimit}`);
+                }
+            } else {
+                // console.log("Invalid log limit value");
+            }
+
+            logLimitInput.value = "";
+        }
+
+        // Function to display the parsed JSON data on the webpage
+        function displayParsedSettingData(data) {
+            // Check if the elements exist before updating their content
+
+            var statusValueElement = document.getElementById("systemStatusValue"); // h S 
+            var minValueElement = document.getElementById("minValue");
+            var maxValueElement = document.getElementById("maxValue");
+
+            var upperTankHeightElement = document.getElementById("upperTankHeight");
+            var upperWaterFullHeightElement = document.getElementById("upperWaterFullHeight");
+            var upperWaterEmptyHeightElement = document.getElementById("upperWaterEmptyHeight");
+
+            var lowerTankHeightElement = document.getElementById("lowerTankHeight");
+            var lowerWaterFullHeightElement = document.getElementById("lowerWaterFullHeight");
+            var lowerWaterEmptyHeightElement = document.getElementById("lowerWaterEmptyHeight");
+
+            // Loop through the properties of the JSON object and perform actions based on the keys
+            for (const key in data) {
+                switch (key) {
+                    case "LAE":
+                        {
+                            lowerSensorAEnable = data[key];
+                            document.getElementById("Special_Function_5").checked = data[key];
+                        }
+                        break;
+                    case "LBE":
+                        {
+                            lowerSensorBEnable = data[key];
+                            document.getElementById("Special_Function_6").checked = data[key];
+                        }
+                        break;
+                    case "UAE":
+                        upperSensorAEnable = data[key];
+                        break;
+                    case "UBE":
+                        upperSensorBEnable = data[key];
+                        break;
+                    case "SM":
+                        {
+                            document.getElementById("systemMode").value = data[key];
+                            handleSystemModeChange();
+                        }
+                        break;
+                    case "LTHA":
+                        document.getElementById("lowerTankHeightA").value = data[key];
+                        break;
+                    case "LTWFHA":
+                        document.getElementById("lowerWaterFullHeightA").value = data[key];
+                        break;
+                    case "LTWEHA":
+                        document.getElementById("lowerWaterEmptyHeightA").value = data[key];
+                        break;
+                    case "UTHA":
+                        document.getElementById("upperTankHeightA").value = data[key];
+                        break;
+                    case "UTWFHA":
+                        document.getElementById("upperWaterFullHeightA").value = data[key];
+                        break;
+                    case "UTWEHA":
+                        document.getElementById("upperWaterEmptyHeightA").value = data[key];
+                        break;
+                    case "LTHB":
+                        document.getElementById("lowerTankHeightB").value = data[key];
+                        break;
+                    case "LTWFHB":
+                        document.getElementById("lowerWaterFullHeightB").value = data[key];
+                        break;
+                    case "LTWEHB":
+                        document.getElementById("lowerWaterEmptyHeightB").value = data[key];
+                        break;
+                    case "UTHB":
+                        document.getElementById("upperTankHeightB").value = data[key];
+                        break;
+                    case "UTWFHB":
+                        document.getElementById("upperWaterFullHeightB").value = data[key];
+                        break;
+                    case "UTWEHB":
+                        document.getElementById("upperWaterEmptyHeightB").value = data[key];
+                        break;
+                    case "MIAV":
+                        document.getElementById("minValue").value = data[key];
+                        break;
+                    case "MAAV":
+                        document.getElementById("maxValue").value = data[key];
+                        break;
+                    case "UTOFL":
+                        document.getElementById("Special_Function_1").checked = data[key];
+                        break;
+                    case "LTOFL":
+                        document.getElementById("Special_Function_2").checked = data[key];
+                        break;
+                    case "SBT":
+                        document.getElementById("Special_Function_3").checked = data[key];
+                        break;
+                    case "BA":
+                        document.getElementById("Special_Function_4").checked = data[key];
+                        break;
+                    case "BMAC":
+                        {
+                            var macAddress = data[key].map(value => value.toString(16)).join(':').toUpperCase();
+                            var macAddressElements = document.querySelectorAll(".mac-address-part");
+
+                            // Iterate over the elements and set their values
+                            macAddressElements.forEach((element, index) => {
+                                element.textContent = macAddress.split(':')[index];
+                            });
+                        }
+                        break;
+
+
+
+                    default:
+                        {
+                            console.log("New Data Found");
+                            console.log(data[key]);
+                        }
+                        break;
+                }
+            }
+
+        }
+
+        // Function to display the parsed JSON data on the webpage
+        function displayParsedHomeData(data) {
+
+            var runTimeValueElement = document.getElementById("runTimeValue"); // h
+
+            var statusValueElement = document.getElementById("systemStatusValue"); // h S 
+            var motorStatusValueElement = document.getElementById("motorStatusValue"); // h
+
+            var upperTankWaterLevelElementA = document.getElementById("upperTankWaterLevelA"); // h
+            var lowerTankWaterLevelElementA = document.getElementById("lowerTankWaterLevelA"); // h
+            var upperTankWaterLevelElementB = document.getElementById("upperTankWaterLevelB"); // h
+            var lowerTankWaterLevelElementB = document.getElementById("lowerTankWaterLevelB"); // h
+
+            var upperTankWaterAEnableElement = document.getElementById("upperTankWaterLevelA"); // h
+            var lowerTankWaterAEnableElement = document.getElementById("lowerTankWaterLevelA"); // h
+            var upperTankWaterBEnableElement = document.getElementById("upperTankWaterLevelB"); // h
+            var lowerTankWaterBEnableElement = document.getElementById("lowerTankWaterLevelB"); // h
+
+            var autoReasonsElement = document.getElementById("autoResons");
+
+            for (const key in data) {
+                switch (key) {
+                    case "RTV":
+                        runTimeValueElement.textContent = data[key];
+                        break;
+                    case "SM":
+                        {
+                            statusValueElement.textContent = data[key];
+                            currentSystemStatus = data[key];
+                            homeViewVisibility();
+                        }
+                        break;
+                    case "MSV":
+                        {
+                            if (data[key] == true) {
+                                motorStatusValueElement.textContent = "ON";
+                            }
+                            else {
+                                motorStatusValueElement.textContent = "OFF";
+                            }
+                        }
+                        break;
+                    case "LAE":
+                        {
+                            lowerSensorAEnable = data[key];
+                            document.getElementById("Special_Function_5").checked = data[key];
+                        }
+                        break;
+                    case "LBE":
+                        {
+                            lowerSensorBEnable = data[key];
+                            document.getElementById("Special_Function_6").checked = data[key];
+                        }
+                        break;
+                    case "UAE":
+                        upperSensorAEnable = data[key];
+                        break;
+                    case "UBE":
+                        upperSensorBEnable = data[key];
+                        break;
+                    case "LTWLA":
+                        lowerTankWaterLevelElementA.textContent = data[key];
+                        break;
+                    case "UTWLA":
+                        upperTankWaterLevelElementA.textContent = data[key];
+                        break;
+                    case "LTWLB":
+                        lowerTankWaterLevelElementB.textContent = data[key];
+                        break;
+                    case "UTWLB":
+                        upperTankWaterLevelElementB.textContent = data[key];
+                        break;
+                    case "AMR":
+                        autoReasonsElement.textContent = data[key];
+                        break;
+                    default:
+                        {
+                            console.log("New Data Found");
+                            // console.log(key);
+                            console.log(data[key]);
+                        }
+                        break;
+                }
+            }
+
+        }
+
+        function syncHomeData() {
+            syncData("getHomeData");
+        }
+
+        function homeSensorSync() {
+            if (lowerSensorAEnable) {
+                document.getElementById("lowerAHome").style.display = "block";
+            } else {
+                document.getElementById("lowerAHome").style.display = "none";
+            }
+            if (lowerSensorBEnable) {
+                document.getElementById("lowerBHome").style.display = "block";
+            } else {
+                document.getElementById("lowerBHome").style.display = "none";
+            }
+            if (upperSensorAEnable) {
+                document.getElementById("upperAHome").style.display = "block";
+            } else {
+                document.getElementById("upperAHome").style.display = "none";
+            }
+            if (upperSensorBEnable) {
+                document.getElementById("upperBHome").style.display = "block";
+            } else {
+                document.getElementById("upperBHome").style.display = "none";
+            }
+        }
+        function syncSettingData() {
+            syncData("getSettingData");
+        }
+
+        // Function to sync data (this is a placeholder function)
+        function syncData(str) {
+            console.log("Syncing Request");
+            doSend(str);
+
+        }
+
+        // Sends a message to the server (and prints it to the console)
+        function doSend(message) {
+            console.log("Sending: " + message);
+            websocket.send(message);
+        }
+
+        // This is called when the page finishes loading
+        function init() {
+
+            // Add event listener to the toggle switch checkbox
+            const toggleSwitchCheckbox = document.querySelector('.toggle-switch input[type="checkbox"]');
+            toggleSwitchCheckbox.addEventListener('change', function () {
+                if (this.checked) {
+                    doSend("motorOn"); // Send motor on command
+                    // console.log("Motor on Triggered");
+                } else {
+                    doSend("motorOff"); // Send motor off command
+                    // console.log("Motor off Triggered");
+                }
+            });
+
+        }
+
+        // Called when the WebSocket connection is closed
+        function onClose(evt) {
+
+            // Log disconnection state
+            console.log("Disconnected");
+
+            // Update connection status
+            const statusValueElement = document.getElementById("statusValue");
+            statusValueElement.textContent = "Disconnected";
+            statusValueElement.style.color = "red";
+
+            // Try to reconnect after a few seconds
+            setTimeout(function () { wsConnect(url) }, webSocketReConnectRate);
+            console.log("WebSocket connection closed");
+            runTimeValue.textContent = "Offline";
+        }
+
+
+        function onMessage(evt) {
+
+            //Print out our received message
+            console.log("Received: " + evt.data);
+
+            try {
+                // Parse the received JSON data
+                var jsonData = JSON.parse(evt.data);
+                var numberOfElements = Object.keys(jsonData).length;
+
+                if (numberOfElements === 1) {
+                    if (jsonData.hasOwnProperty("MSV")) {
+                        motorStatusValue.innerText = jsonData["MSV"];
+
+                    } else if (jsonData.hasOwnProperty("MSV")) {
+                        motorStatusValue.innerText = jsonData["MSV"];
+
+                    } else {
+                        console.log("Key 'motorStatusValue' does not exist in the object.");
+                    }
+                }
+                else if (numberOfElements === 12) {
+                    console.log("numberOfElements = 12, so home data")
+                    displayParsedHomeData(jsonData);
+                }
+                else if (numberOfElements === 24) {
+                    console.log("numberOfElements = 24, so setting data")
+                    displayParsedSettingData(jsonData);
+                }
+                else {
+                    // systemStatusValue.innerText = jsonData["systemStatusValue"];
+                    // displayParsedData(jsonData);
+                    console.log("Out of Scope data set identified.")
+                }
+
+
+                // console.log("after phased: " + jsonData);
+                // console.log("Received: " + JSON.stringify(jsonData));
+            } catch (error) {
+                // Handle JSON parsing errors, if any
+                console.error("Error parsing JSON data: " + error.message);
+                // console.log("Error parsing JSON data: " + error.message);
+            }
+
+        }
+
+        // Called when a WebSocket error occurs
+        function onError(evt) {
+            // Update connection status
+            const statusValueElement = document.getElementById("statusValue");
+            statusValueElement.textContent = "Error";
+            statusValueElement.style.color = "red";
+            console.log("WebSocket error: " + evt.data);
+        }
+
+        // Call this to connect to the WebSocket server
+        function wsConnect(url) {
+
+            // Connect to WebSocket server
+            websocket = new WebSocket(url);
+
+            // Assign callbacks
+            websocket.onopen = function (evt) { onOpen(evt) };
+            websocket.onclose = function (evt) { onClose(evt) };
+            websocket.onmessage = function (evt) { onMessage(evt) };
+            websocket.onerror = function (evt) { onError(evt) };
+        }
+
+        // Called when a WebSocket connection is established with the server
+        function onOpen(evt) {
+
+            // Log connection state
+
+            console.log("Connected");
+            init();
+            // syncData("getAllData");
+            showHome();
+
+            homeSensorSync();
+
+            // Update connection status
+            const statusValueElement = document.getElementById("statusValue");
+            statusValueElement.textContent = "Connected";
+            statusValueElement.style.color = "green";
+
+            console.log("WebSocket connection opened");
+            // nIntervId = setInterval(syncHomeData, homePageRefreshRate); 
+
+        }
+
+        function updateSettings() {
+
+            var systemMode = document.getElementById("systemMode").value;
+
+            let settings = {
+                SM: systemMode,
+                UTHA: parseFloat(document.getElementById("upperTankHeightA").value),
+                UTWFHA: parseFloat(document.getElementById("upperWaterFullHeightA").value),
+                UTWEHA: parseFloat(document.getElementById("upperWaterEmptyHeightA").value),
+                LTHA: parseFloat(document.getElementById("lowerTankHeightA").value),
+                LTWFHA: parseFloat(document.getElementById("lowerWaterFullHeightA").value),
+                LTWEHA: parseFloat(document.getElementById("lowerWaterEmptyHeightA").value),
+                UTHB: parseFloat(document.getElementById("upperTankHeightB").value),
+                UTWFHB: parseFloat(document.getElementById("upperWaterFullHeightB").value),
+                UTWEHB: parseFloat(document.getElementById("upperWaterEmptyHeightB").value),
+                LTHB: parseFloat(document.getElementById("lowerTankHeightB").value),
+                LTWFHB: parseFloat(document.getElementById("lowerWaterFullHeightB").value),
+                LTWEHB: parseFloat(document.getElementById("lowerWaterEmptyHeightB").value)
+            };
+            if (document.getElementById("Special_Function_5").checked) {
+                settings.LAE = parseInt(1);
+            }
+            else {
+                settings.LAE = parseInt(0);
+            }
+            if (document.getElementById("Special_Function_6").checked) {
+                settings.LBE = parseInt(1);
+            }
+            else {
+                settings.LBE = parseInt(0);
+            }
+            if (document.getElementById("Special_Function_3").checked) {
+                settings.SBT = parseInt(1);
+            }
+            else {
+                settings.SBT = parseInt(0);
+            }
+
+            if (document.getElementById("Special_Function_4").checked) {
+                settings.BA = parseInt(1);
+            }
+            else {
+                settings.BA = parseInt(0);
+            }
+
+            if (document.getElementById("Special_Function_1").checked) {
+                settings.UTOFL = parseInt(1);
+            }
+            else {
+                settings.UTOFL = parseInt(0);
+            }
+
+            if (document.getElementById("Special_Function_2").checked) {
+                settings.LTOFL = parseInt(1);
+            }
+            else {
+                settings.LTOFL = parseInt(0);
+            }
+
+            if (systemMode === "Auto Mode") {
+                settings.MIAV = parseFloat(document.getElementById("minValue").value);
+                settings.MAAV = parseFloat(document.getElementById("maxValue").value);
+                // Add other auto mode settings as needed
+            } else if (systemMode === "Manual Mode") {
+                // Add manual mode settings as needed
+            }
+            const jsonSettings = JSON.stringify(settings);
+            // console.log("Jsons String: ", jsonSettings);
+
+            doSend(jsonSettings);
+            setTimeout(function () { }, 500);
+            showHome();
+        }
+
+
+
+        function homeViewVisibility() {
+            const autoHomeView = document.getElementById("AutoHomeView");
+            const manualHomeView = document.getElementById("ManualHomeView");
+
+            if (currentSystemStatus === "Manual Mode") {
+                autoHomeView.style.display = "none";
+                manualHomeView.style.display = "block";
+            } else if (currentSystemStatus === "Auto Mode") {
+                autoHomeView.style.display = "block";
+                manualHomeView.style.display = "none";
+            }
+        }
+
+        function showSettings() {
+            clearInterval(nIntervId);
+
+            syncSettingData();
+
+            homeSensorSync();
+
+            activationChange();
+
+
+            document.getElementById("homeContent").style.display = "none";
+            document.getElementById("settingsForm").style.display = "block";
+
+            if (lowerSensorAEnable) {
+                document.getElementById("lowerASetting").style.display = "block";
+            } else {
+                document.getElementById("lowerASetting").style.display = "none";
+            }
+            if (lowerSensorBEnable) {
+                document.getElementById("lowerBSetting").style.display = "block";
+            } else {
+                document.getElementById("lowerBSetting").style.display = "none";
+            }
+            if (upperSensorAEnable) {
+                document.getElementById("upperASetting").style.display = "block";
+            } else {
+                document.getElementById("upperASetting").style.display = "none";
+            }
+            if (upperSensorBEnable) {
+                document.getElementById("upperBSetting").style.display = "block";
+            } else {
+                document.getElementById("upperBSetting").style.display = "none";
+            }
+
+
+
+            console.log("Sync Data Deleted..");
+
+        }
+
+
+        function showHome() {
+            syncHomeData();
+            homeSensorSync();
+
+            document.getElementById("homeContent").style.display = "block";
+            document.getElementById("settingsForm").style.display = "none";
+
+            // if(nIntervId){
+            nIntervId = setInterval(syncHomeData, homePageRefreshRate); // 10000 milliseconds = 10 seconds
+            console.log("Sync Data Called..");
+            // }
+
+
+
+
+
+
+        }
+
+    </script>
+</head>
+
+<body>
+
+    <!-- header section  -->
+    <header>
+        <a href="/">
+            <h2>Smart Water Tank V1.0</h2>
+        </a>
+        <nav>
+            <ul>
+                <li><a href="/" onclick="showHome()">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-dashboard"
+                            width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"
+                            fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                            <path d="M12 13m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"></path>
+                            <path d="M13.45 11.55l2.05 -2.05"></path>
+                            <path d="M6.4 20a9 9 0 1 1 11.2 0z"></path>
+                        </svg></a></li>
+
+                <li><a href="#setting" onclick="showSettings()">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home-cog" width="24"
+                            height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"
+                            stroke-linecap="round" stroke-linejoin="round" color="#6e6d6d">
+                            <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                            <path d="M9 21v-6a2 2 0 0 1 2 -2h1.6"></path>
+                            <path d="M20 11l-8 -8l-9 9h2v7a2 2 0 0 0 2 2h4.159"></path>
+                            <path d="M18 18m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"></path>
+                            <path d="M18 14.5v1.5"></path>
+                            <path d="M18 20v1.5"></path>
+                            <path d="M21.032 16.25l-1.299 .75"></path>
+                            <path d="M16.27 19l-1.3 .75"></path>
+                            <path d="M14.97 16.25l1.3 .75"></path>
+                            <path d="M19.733 19l1.3 .75"></path>
+                        </svg></a></li>
+
+                <!-- <li><a href="/configuration.html">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-tool" width="24"
+                            height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"
+                            stroke-linecap="round" stroke-linejoin="round" color="#6e6d6d">
+                            <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                            <path
+                                d="M7 10h3v-3l-3.5 -3.5a6 6 0 0 1 8 8l6 6a2 2 0 0 1 -3 3l-6 -6a6 6 0 0 1 -8 -8l3.5 3.5">
+                            </path>
+                        </svg></a></li> -->
+            </ul>
+        </nav>
+    </header>
+
+    <!-- content Section -->
+    <div class="content">
+        <!-- Home Page -->
+        <div class="dashboard-container" id="homeContent">
+            <!-- Sync Button -->
+            <div>
+                <h2>DASHBOARD</h2>
+            </div>
+
+            <!-- top three box -->
+            <table class="dashboard-table">
+                <tr>
+                    <td>
+                        <h4>Server Status:</h4>
+                        <p><span id="statusValue">Disconnected</span></p>
+                    </td>
+                    <td>
+                        <div id="upperAHome">
+                            <h4>Upper Tank Level (A):</h4>
+                            <p><span id="upperTankWaterLevelA"></span> <b>%</b> </p>
+                        </div>
+                        <div id="upperBHome">
+                            <h4>Upper Tank Level (B):</h4>
+                            <p><span id="upperTankWaterLevelB"></span> <b>%</b> </p>
+                        </div>
+                    </td>
+                    <td>
+                        <h4>Last Updated:</h4>
+                        <p><span id="runTimeValue"></span> <b>sec</b></p>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td>
+                        <h4>System Mode:</h4>
+                        <p><span id="systemStatusValue"></span></p>
+                    </td>
+                    <td>
+                        <div id="lowerAHome">
+                            <h4>Lower Tank Level (A):</h4>
+                            <p><span id="lowerTankWaterLevelA"></span> <b>%</b> </p>
+                        </div>
+
+                        <div id="lowerBHome">
+                            <h4>Lower Tank Level (B):</h4>
+                            <p><span id="lowerTankWaterLevelB"></span> <b>%</b></p>
+                        </div>
+                    </td>
+                    <td>
+                        <h4>Motor Status:</h4>
+                        <p><span id="motorStatusValue"></span></p>
+                    </td>
+                </tr>
+
+
+            </table>
+
+            <table class="dashboard-table">
+                <tr>
+                    <td>
+                        <!-- Auto home page -->
+                        <div class="autoManual" id="AutoHomeView">
+                            <h3>Auto Mode</h3>
+                            <p><span id="autoResons"></span></p>
+                        </div>
+
+                        <!-- manual home page -->
+                        <div class="autoManual" id="ManualHomeView">
+                            <h3>Manual Mode</h3>
+                            <h4>Motor Switch:</h4>
+                            <label class="toggle-switch">
+                                <input type="checkbox">
+                                <div class="toggle-switch-background">
+                                    <div class="toggle-switch-handle"></div>
+                                </div>
+                            </label>
+
+                        </div>
+
+                    </td>
+                </tr>
+            </table>
+            <div>
+                <button id="syncData" onclick="syncHomeData()">Sync Data</button>
+            </div>
+        </div>
+        <!-- Settings Page -->
+        <div class="dashboard-setting" id="settingsForm">
+            <table class="dashboard-setting">
+                <tr>
+                    <th>
+                        <h1>Parameter Settings</h1>
+                    </th>
+                </tr>
+            </table>
+            <form>
+                <table class="dashboard-setting">
+                    <tr>
+                        <td>
+                            <h2>System Mode:</h2>
+                            <label for="systemMode">Select Mode:</label>
+                            <select id="systemMode" onchange="handleSystemModeChange()">
+                                <option value="Auto Mode">Auto Mode</option>
+                                <option value="Manual Mode">Manual Mode</option>
+                            </select><br><br>
+
+                            <div id="autoSettings">
+                                <h2>Auto Mode Settings:</h2>
+                                <label for="minValue">Minimum Value:</label>
+                                <input type="number" id="minValue" step="10"><br><br>
+
+                                <label for="maxValue">Maximum Value:</label>
+                                <input type="number" id="maxValue" step="10"><br><br>
+
+                                <h5>Note: Data are in Percentage(%).</h5>
+                            </div>
+
+                            <div id="manualSettings">
+                                <h2>Manual Mode Settings:</h2>
+                                <!-- Add your manual mode input controls here -->
+                                <h5>Note: Necessary Controls available at main dashboard.</h5>
+                            </div>
+
+                        </td>
+                    </tr>
+                </table>
+                <table class="dashboard-setting">
+                    <tr>
+                        <td>
+                            <h2>Activating Sensor:</h2>
+
+                            <label for="lowerTankAEnable">LowerTank Sensor (A) Enable:</label>
+                            <input type="checkbox" class="ui-ccheckbox" id="Special_Function_5" name="lowerTankAEnable"
+                                onchange="activationChange()">
+                            <br>
+
+                            <label for="lowerTankBEnable">LowerTank Sensor (B) Enable:</label>
+                            <input type="checkbox" class="ui-ccheckbox" id="Special_Function_6" name="lowerTankBEnable"
+                                onchange="activationChange()">
+
+
+                            <div id="upperASetting">
+                                <h2>Upper Tank (A):</h2>
+                                <label for="upperTankHeight">Tank Height:</label>
+                                <input type="number" id="upperTankHeightA" step="0.1"><br><br>
+
+                                <label for="upperWaterFullHeight">Water Full Height:</label>
+                                <input type="number" id="upperWaterFullHeightA" step="0.1"><br><br>
+
+                                <label for="upperWaterEmptyHeight">Water Empty Height:</label>
+                                <input type="number" id="upperWaterEmptyHeightA" step="0.1"><br><br>
+                            </div>
+
+                            <div id="upperBSetting">
+                                <h2>Upper Tank (B):</h2>
+                                <label for="upperTankHeight">Tank Height:</label>
+                                <input type="number" id="upperTankHeightB" step="0.1"><br><br>
+
+                                <label for="upperWaterFullHeight">Water Full Height:</label>
+                                <input type="number" id="upperWaterFullHeightB" step="0.1"><br><br>
+
+                                <label for="upperWaterEmptyHeight">Water Empty Height:</label>
+                                <input type="number" id="upperWaterEmptyHeightB" step="0.1"><br><br>
+                            </div>
+                            <div id="lowerASetting">
+                                <h2>Lower Tank (A):</h2>
+                                <label for="lowerTankHeightA">Tank Height:</label>
+                                <input type="number" id="lowerTankHeightA" step="0.1"><br><br>
+
+                                <label for="lowerWaterFullHeight">Water Full Height:</label>
+                                <input type="number" id="lowerWaterFullHeightA" step="0.1"><br><br>
+
+                                <label for="lowerWaterEmptyHeight">Water Empty Height:</label>
+                                <input type="number" id="lowerWaterEmptyHeightA" step="0.1"><br><br>
+                            </div>
+
+                            <div id="lowerBSetting">
+                                <h2>Lower Tank (B):</h2>
+                                <label for="lowerTankHeightB">Tank Height:</label>
+                                <input type="number" id="lowerTankHeightB" step="0.1"><br><br>
+
+                                <label for="lowerWaterFullHeight">Water Full Height:</label>
+                                <input type="number" id="lowerWaterFullHeightB" step="0.1"><br><br>
+
+                                <label for="lowerWaterEmptyHeight">Water Empty Height:</label>
+                                <input type="number" id="lowerWaterEmptyHeightB" step="0.1"><br><br>
+                            </div>
+
+                            <h5>Note: Data are in Centimeters.</h5>
+                    </tr>
+                    </td>
+                </table>
+                <table class="dashboard-setting">
+                    <tr>
+                        <td>
+                            <h2>Special Functions [Auto Mode]</h2>
+                            <label for="upperTankHeight">Upper Tank OverFlow Lock</label>
+                            <input type="checkbox" class="ui-ccheckbox" id="Special_Function_1"
+                                name="upper-Tank-OverFlow" disabled="true" value="checked">
+                            <h6><i>Note: Motor was turned OFF when Upper Tank Water Level was greater than 100%.
+                                </i></h6><br><br>
+
+                            <label for="upperWaterFullHeight">Lower Tank OverFlow Lock</label>
+                            <input type="checkbox" class="ui-ccheckbox" id="Special_Function_2"
+                                name="lower-Tank-OverFlow">
+                            <h6><i>Note: Incase the Lower Tank Water level reaching 100 the Motor is turned ON
+                                    Automatically to pass the overflow water to Upper Tank.</i></h6><br><br>
+
+                            <label for="SyncBothTank">Sync Both Tank</label>
+                            <input type="checkbox" class="ui-ccheckbox" id="Special_Function_3"
+                                name="lower-Tank-OverFlow">
+                            <h6><i>Note: Syncying both tank will won't allow the lower tank's water level less than 30%.
+                                </i></h6><br><br>
+
+                            <label for="upperWaterFullHeight">Buzzer</label>
+                            <input type="checkbox" class="ui-ccheckbox" id="Special_Function_4"
+                                name="lower-Tank-OverFlow">
+                            <h6><i>Note: Some Alerts and Warning was shown with Audible Buzzer Sound.
+                                </i></h6><br><br>
+
+
+
+
+                    </tr>
+                    </td>
+                </table>
+                <table class="dashboard-setting">
+                    <tr>
+                        <td>
+                            <h2>System Information:</h2>
+                            <!-- <div class="mac-input-row"> -->
+                            <label for="publishDelay">MAC Address:</label>
+                            <p>
+                                <span class="mac-address-part" id="macl1"></span>
+                                <span>:</span>
+                                <span class="mac-address-part" id="macl2"></span>
+                                <span>:</span>
+                                <span class="mac-address-part" id="macl3"></span>
+                                <span>:</span>
+                                <span class="mac-address-part" id="macl4"></span>
+                                <span>:</span>
+                                <span class="mac-address-part" id="macl5"></span>
+                                <span>:</span>
+                                <span class="mac-address-part" id="macl6"></span>
+                            </p>
+
+                            <!-- <p id="macAddressDisplay"></p> -->
+                            <!-- </div> -->
+                            <br>
+                    </tr>
+                    </td>
+                </table>
+            </form>
+
+
+            <button type="button" onclick="updateSettings()">Update</button>
+        </div>
+    </div>
+
+    <!-- footer Section -->
+    <footer>
+        <div class="footer-content">
+            <p>&copy; <b>EMPTY IDEA &trade;.</b> <i>All Rights Reserved </i></p>
+        </div>
+    </footer>
+
+</body>
+
+</html>
