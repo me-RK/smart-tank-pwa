@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Wifi, Globe, Server, AlertCircle, CheckCircle, Info } from 'lucide-react';
+import { getNetworkInfo } from '../utils/connectionTest';
 
 interface NetworkInfoProps {
   isOpen: boolean;
@@ -29,6 +30,12 @@ interface NetworkDetails {
   hostname: string;
   port: string;
   pathname: string;
+  // Network discovery info
+  localIP?: string | null;
+  network?: string | null;
+  gateway?: string | null;
+  subnet?: string | null;
+  scanRange?: string | null;
 }
 
 export const NetworkInfo: React.FC<NetworkInfoProps> = ({ isOpen, onClose }) => {
@@ -82,6 +89,18 @@ export const NetworkInfo: React.FC<NetworkInfoProps> = ({ isOpen, onClose }) => 
         details.downlink = connection.downlink;
         details.rtt = connection.rtt;
         details.saveData = connection.saveData;
+      }
+
+      // Get network discovery information
+      try {
+        const networkInfo = await getNetworkInfo();
+        details.localIP = networkInfo.localIP;
+        details.network = networkInfo.network;
+        details.gateway = networkInfo.gateway;
+        details.subnet = networkInfo.subnet;
+        details.scanRange = networkInfo.scanRange;
+      } catch (error) {
+        console.error('Error getting network discovery info:', error);
       }
 
       setNetworkDetails(details);
@@ -216,6 +235,48 @@ export const NetworkInfo: React.FC<NetworkInfoProps> = ({ isOpen, onClose }) => 
                   <div className="flex justify-between">
                     <span className="text-gray-600 dark:text-gray-400">Path:</span>
                     <span className="text-gray-800 dark:text-gray-200 font-mono">{networkDetails?.pathname}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Network Discovery Information */}
+              <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
+                <div className="flex items-center space-x-2 mb-3">
+                  <Wifi className="w-5 h-5 text-purple-500" />
+                  <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
+                    Network Discovery
+                  </h3>
+                </div>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Local IP:</span>
+                    <span className="text-gray-800 dark:text-gray-200 font-mono">
+                      {networkDetails?.localIP || 'Not detected'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Network:</span>
+                    <span className="text-gray-800 dark:text-gray-200 font-mono">
+                      {networkDetails?.network || 'Not detected'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Gateway:</span>
+                    <span className="text-gray-800 dark:text-gray-200 font-mono">
+                      {networkDetails?.gateway || 'Not detected'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Subnet:</span>
+                    <span className="text-gray-800 dark:text-gray-200 font-mono">
+                      {networkDetails?.subnet || 'Not detected'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Scan Range:</span>
+                    <span className="text-gray-800 dark:text-gray-200 font-mono">
+                      {networkDetails?.scanRange || 'Not detected'}
+                    </span>
                   </div>
                 </div>
               </div>

@@ -214,33 +214,191 @@ export const runConnectionTests = async (host: string): Promise<{
 };
 
 /**
- * Common ESP32 IP addresses to try
+ * Get local IP address using WebRTC
  */
-export const commonEsp32Ips = [
-  '192.168.1.1',
-  '192.168.1.2',
-  '192.168.1.3',
-  '192.168.1.4',
-  '192.168.1.5',
-  '192.168.1.6',
-  '192.168.1.7',
-  '192.168.1.8',  // Your ESP32 IP
-  '192.168.1.9',
-  '192.168.1.10',
-  '192.168.1.100',
-  '192.168.1.101',
-  '192.168.1.102',
-  '192.168.1.103',
-  '192.168.1.104',
-  '192.168.1.105',
-  '192.168.4.1', // ESP32 AP mode default
-  '192.168.4.2',
-  '10.0.0.1',
-  '172.16.0.1',
-  '192.168.0.100',
-  '192.168.0.101',
-  '192.168.0.102'
-];
+export const getLocalIP = (): Promise<string | null> => {
+  return new Promise((resolve) => {
+    const pc = new RTCPeerConnection({
+      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+    });
+    
+    pc.createDataChannel('');
+    pc.createOffer().then(offer => pc.setLocalDescription(offer));
+    
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        const candidate = event.candidate.candidate;
+        const ipMatch = candidate.match(/([0-9]{1,3}(\.[0-9]{1,3}){3})/);
+        if (ipMatch) {
+          const ip = ipMatch[1];
+          // Filter out public IPs and localhost
+          if (!ip.startsWith('127.') && !ip.startsWith('169.254.') && 
+              (ip.startsWith('192.168.') || ip.startsWith('10.') || 
+               (ip.startsWith('172.') && parseInt(ip.split('.')[1]) >= 16 && parseInt(ip.split('.')[1]) <= 31))) {
+            pc.close();
+            resolve(ip);
+            return;
+          }
+        }
+      }
+    };
+    
+    // Timeout after 3 seconds
+    setTimeout(() => {
+      pc.close();
+      resolve(null);
+    }, 3000);
+  });
+};
+
+/**
+ * Get current network configuration
+ */
+export const getNetworkConfig = async (): Promise<{ gateway: string; subnet: string; network: string } | null> => {
+  try {
+    // First try to get local IP using WebRTC
+    const localIP = await getLocalIP();
+    
+    if (localIP) {
+      console.log(`Detected local IP: ${localIP}`);
+      const ipParts = localIP.split('.').map(Number);
+      const [a, b, c] = ipParts;
+      
+      // Determine network class and common gateway
+      let gateway: string;
+      let subnet: string;
+      let network: string;
+      
+      if (a === 192 && b === 168) {
+        // 192.168.x.x network
+        gateway = `${a}.${b}.${c}.1`;
+        subnet = '255.255.255.0';
+        network = `${a}.${b}.${c}.0`;
+      } else if (a === 10) {
+        // 10.x.x.x network
+        gateway = `${a}.${b}.${c}.1`;
+        subnet = '255.255.255.0';
+        network = `${a}.${b}.${c}.0`;
+      } else if (a === 172 && b >= 16 && b <= 31) {
+        // 172.16.x.x - 172.31.x.x network
+        gateway = `${a}.${b}.${c}.1`;
+        subnet = '255.255.255.0';
+        network = `${a}.${b}.${c}.0`;
+      } else {
+        // Default to /24 subnet
+        gateway = `${a}.${b}.${c}.1`;
+        subnet = '255.255.255.0';
+        network = `${a}.${b}.${c}.0`;
+      }
+      
+      return { gateway, subnet, network };
+    }
+    
+    // Fallback: Get current page URL to determine network
+    const currentUrl = new URL(window.location.href);
+    const hostname = currentUrl.hostname;
+    
+    // If we're on localhost or IP, we can detect the network
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      // For localhost, we'll use common network ranges
+      return {
+        gateway: '192.168.1.1',
+        subnet: '255.255.255.0',
+        network: '192.168.1.0'
+      };
+    }
+    
+    // If we're on an IP address, extract network info
+    const ipMatch = hostname.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+    if (ipMatch) {
+      const [, a, b, c] = ipMatch.map(Number);
+      
+      // Determine network class and common gateway
+      let gateway: string;
+      let subnet: string;
+      let network: string;
+      
+      if (a === 192 && b === 168) {
+        // 192.168.x.x network
+        gateway = `${a}.${b}.${c}.1`;
+        subnet = '255.255.255.0';
+        network = `${a}.${b}.${c}.0`;
+      } else if (a === 10) {
+        // 10.x.x.x network
+        gateway = `${a}.${b}.${c}.1`;
+        subnet = '255.255.255.0';
+        network = `${a}.${b}.${c}.0`;
+      } else if (a === 172 && b >= 16 && b <= 31) {
+        // 172.16.x.x - 172.31.x.x network
+        gateway = `${a}.${b}.${c}.1`;
+        subnet = '255.255.255.0';
+        network = `${a}.${b}.${c}.0`;
+      } else {
+        // Default to /24 subnet
+        gateway = `${a}.${b}.${c}.1`;
+        subnet = '255.255.255.0';
+        network = `${a}.${b}.${c}.0`;
+      }
+      
+      return { gateway, subnet, network };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error detecting network config:', error);
+    return null;
+  }
+};
+
+/**
+ * Generate IP addresses to scan based on network configuration
+ */
+export const generateIpList = async (): Promise<string[]> => {
+  const networkConfig = await getNetworkConfig();
+  const ips: string[] = [];
+  
+  if (networkConfig) {
+    const { gateway, network } = networkConfig;
+    
+    // Extract base network (e.g., 192.168.1 from 192.168.1.0)
+    const baseNetwork = network.split('.').slice(0, 3).join('.');
+    
+    // Add common ESP32 IPs first (gateway, common router IPs, etc.)
+    ips.push(gateway);
+    ips.push(`${baseNetwork}.2`);
+    ips.push(`${baseNetwork}.3`);
+    ips.push(`${baseNetwork}.4`);
+    ips.push(`${baseNetwork}.5`);
+    
+    // Add some common ESP32 IPs in the middle range
+    for (let i = 10; i <= 20; i++) {
+      ips.push(`${baseNetwork}.${i}`);
+    }
+    
+    // Add some common ESP32 IPs in the higher range
+    for (let i = 100; i <= 110; i++) {
+      ips.push(`${baseNetwork}.${i}`);
+    }
+    
+    // Add some common ESP32 IPs in the very high range
+    for (let i = 200; i <= 254; i++) {
+      ips.push(`${baseNetwork}.${i}`);
+    }
+    
+    console.log(`Generated ${ips.length} IPs to scan for network ${baseNetwork}.x`);
+  } else {
+    // Fallback to common IPs if network detection fails
+    console.log('Network detection failed, using fallback IP list');
+    ips.push(
+      '192.168.1.1', '192.168.1.2', '192.168.1.3', '192.168.1.4', '192.168.1.5',
+      '192.168.179.250', '192.168.179.1', '192.168.179.2', '192.168.179.3',
+      '192.168.4.1', '192.168.4.2',
+      '10.0.0.1', '172.16.0.1'
+    );
+  }
+  
+  return ips;
+};
 
 /**
  * Auto-discover ESP32 devices on local network
@@ -249,6 +407,9 @@ export const discoverEsp32Devices = async (): Promise<string[]> => {
   const discovered: string[] = [];
   
   console.log('Scanning for ESP32 devices...');
+  
+  // Generate IP list dynamically based on network configuration
+  const commonEsp32Ips = await generateIpList();
   console.log('Testing IPs:', commonEsp32Ips);
   
   // Test common IP addresses in parallel batches
@@ -292,6 +453,49 @@ export const discoverEsp32Devices = async (): Promise<string[]> => {
   
   console.log(`Discovery complete. Found ${discovered.length} devices:`, discovered);
   return discovered;
+};
+
+/**
+ * Get network information for display
+ */
+export const getNetworkInfo = async (): Promise<{
+  localIP: string | null;
+  network: string | null;
+  gateway: string | null;
+  subnet: string | null;
+  scanRange: string | null;
+}> => {
+  try {
+    const localIP = await getLocalIP();
+    const networkConfig = await getNetworkConfig();
+    
+    if (networkConfig) {
+      return {
+        localIP,
+        network: networkConfig.network,
+        gateway: networkConfig.gateway,
+        subnet: networkConfig.subnet,
+        scanRange: `${networkConfig.network.split('.').slice(0, 3).join('.')}.x`
+      };
+    }
+    
+    return {
+      localIP,
+      network: null,
+      gateway: null,
+      subnet: null,
+      scanRange: null
+    };
+  } catch (error) {
+    console.error('Error getting network info:', error);
+    return {
+      localIP: null,
+      network: null,
+      gateway: null,
+      subnet: null,
+      scanRange: null
+    };
+  }
 };
 
 /**
