@@ -3,241 +3,594 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Water Tank - WiFi Config</title>
+    <title>Smart Water Tank - WiFi Setup</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
+        * {
             margin: 0;
-            padding: 20px;
-            background: #f5f5f5;
-        }
-        .container {
-            max-width: 400px;
-            margin: 0 auto;
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        h1 {
-            text-align: center;
-            color: #333;
-            margin-bottom: 30px;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-            color: #555;
-        }
-        select, input {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
+            padding: 0;
             box-sizing: border-box;
         }
-        .static-ip {
-            display: none;
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
-        .static-ip.show {
-            display: block;
-        }
-        button {
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
             width: 100%;
-            padding: 12px;
-            background: #007bff;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 16px;
-            margin-top: 10px;
-        }
-        button:hover {
-            background: #0056b3;
-        }
-        .status {
-            margin-top: 15px;
-            padding: 10px;
-            border-radius: 4px;
+            padding: 30px;
             text-align: center;
         }
-        .success {
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+
+        select, input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            font-family: inherit;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .static-ip-section {
+            display: none;
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
+        .static-ip-section.show {
+            display: block;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .ip-input-group {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 14px;
+            font-weight: 500;
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .status.show {
+            display: block;
+        }
+
+        .status.success {
             background: #d4edda;
             color: #155724;
-            border: 1px solid #c3e6cb;
+            border: 2px solid #c3e6cb;
         }
-        .error {
+
+        .status.error {
             background: #f8d7da;
             color: #721c24;
-            border: 1px solid #f5c6cb;
+            border: 2px solid #f5c6cb;
+        }
+
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 2px solid #bee5eb;
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #dc3545;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.connected {
+            background: #28a745;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .help-text {
+            font-size: 12px;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+
+        .divider {
+            height: 1px;
+            background: #e0e0e0;
+            margin: 25px 0;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+            cursor: pointer;
+        }
+
+        .checkbox-group label {
+            margin: 0;
+            cursor: pointer;
+            font-weight: normal;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                border-radius: 0;
+            }
+            
+            .ip-input-group {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>WiFi Configuration</h1>
-        
-        <form id="wifiForm">
-            <div class="form-group">
-                <label for="wifiMode">WiFi Mode:</label>
-                <select id="wifiMode" name="wifiMode" onchange="toggleStaticIP()">
-                    <option value="AP">Access Point (AP)</option>
-                    <option value="STA">Station (STA)</option>
-                </select>
+        <div class="header">
+            <h1>🌊 Smart Water Tank</h1>
+            <p>WiFi Configuration v3.0</p>
+        </div>
+
+        <div class="content">
+            <div class="connection-status">
+                <div class="status-dot" id="connectionDot"></div>
+                <span id="connectionText">Connecting to device...</span>
             </div>
 
-            <div class="form-group">
-                <label for="ssid">SSID:</label>
-                <input type="text" id="ssid" name="ssid" value="Smart Water Tank v2.0" required>
-            </div>
-
-            <div class="form-group">
-                <label for="password">Password:</label>
-                <input type="password" id="password" name="password" value="00000000" required>
-            </div>
-
-            <div class="form-group">
-                <label for="ipType">IP Configuration:</label>
-                <select id="ipType" name="ipType" onchange="toggleStaticIP()">
-                    <option value="dynamic">Dynamic IP (DHCP)</option>
-                    <option value="static">Static IP</option>
-                </select>
-            </div>
-
-            <div id="staticIPFields" class="static-ip">
+            <form id="wifiForm">
                 <div class="form-group">
-                    <label for="ipAddress">IP Address:</label>
-                    <input type="text" id="ipAddress" name="ipAddress" placeholder="192.168.1.100">
+                    <label for="wifiMode">WiFi Mode</label>
+                    <select id="wifiMode" name="wifiMode" required>
+                        <option value="AP">Access Point (AP)</option>
+                        <option value="STA">Station (STA)</option>
+                    </select>
+                    <p class="help-text">AP: Device creates its own network | STA: Device connects to existing network</p>
                 </div>
-                <div class="form-group">
-                    <label for="gateway">Gateway:</label>
-                    <input type="text" id="gateway" name="gateway" placeholder="192.168.1.1">
-                </div>
-                <div class="form-group">
-                    <label for="subnet">Subnet Mask:</label>
-                    <input type="text" id="subnet" name="subnet" placeholder="255.255.255.0">
-                </div>
-                <div class="form-group">
-                    <label for="dns1">Primary DNS:</label>
-                    <input type="text" id="dns1" name="dns1" placeholder="8.8.8.8">
-                </div>
-            </div>
 
-            <button type="submit">Save Configuration</button>
-        </form>
+                <div class="form-group">
+                    <label for="ssid">Network Name (SSID)</label>
+                    <input type="text" id="ssid" name="ssid" placeholder="Smart Water Tank v3.0" required>
+                    <p class="help-text">The name of the WiFi network</p>
+                </div>
 
-        <div id="status"></div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" placeholder="Enter password" required>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="showPassword">
+                        <label for="showPassword">Show password</label>
+                    </div>
+                    <p class="help-text">Minimum 8 characters</p>
+                </div>
+
+                <div class="divider"></div>
+
+                <div class="form-group">
+                    <label for="ipConfig">IP Configuration</label>
+                    <select id="ipConfig" name="ipConfig" required>
+                        <option value="dynamic">Dynamic IP (DHCP)</option>
+                        <option value="static">Static IP</option>
+                    </select>
+                    <p class="help-text">Static IP recommended for stable connection</p>
+                </div>
+
+                <div id="staticIpSection" class="static-ip-section">
+                    <div class="form-group">
+                        <label for="ipAddress">IP Address</label>
+                        <input type="text" id="ipAddress" placeholder="192.168.1.100" pattern="^(\d{1,3}\.){3}\d{1,3}$">
+                    </div>
+
+                    <div class="ip-input-group">
+                        <div class="form-group">
+                            <label for="gateway">Gateway</label>
+                            <input type="text" id="gateway" placeholder="192.168.1.1" pattern="^(\d{1,3}\.){3}\d{1,3}$">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="subnet">Subnet Mask</label>
+                            <input type="text" id="subnet" placeholder="255.255.255.0" pattern="^(\d{1,3}\.){3}\d{1,3}$">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="primaryDNS">Primary DNS</label>
+                        <input type="text" id="primaryDNS" placeholder="8.8.8.8" pattern="^(\d{1,3}\.){3}\d{1,3}$">
+                        <p class="help-text">Google DNS: 8.8.8.8 | Cloudflare DNS: 1.1.1.1</p>
+                    </div>
+                </div>
+
+                <button type="submit" id="saveButton">Save Configuration</button>
+                <button type="button" id="restartButton" style="background: #6c757d; margin-top: 10px;">Restart Device</button>
+            </form>
+
+            <div id="statusMessage" class="status"></div>
+        </div>
     </div>
 
     <script>
         let ws;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 5;
 
-        function toggleStaticIP() {
-            const ipType = document.getElementById('ipType').value;
-            const staticFields = document.getElementById('staticIPFields');
-            
-            if (ipType === 'static') {
-                staticFields.classList.add('show');
+        // DOM Elements
+        const wifiModeSelect = document.getElementById('wifiMode');
+        const ipConfigSelect = document.getElementById('ipConfig');
+        const staticIpSection = document.getElementById('staticIpSection');
+        const wifiForm = document.getElementById('wifiForm');
+        const saveButton = document.getElementById('saveButton');
+        const restartButton = document.getElementById('restartButton');
+        const statusMessage = document.getElementById('statusMessage');
+        const connectionDot = document.getElementById('connectionDot');
+        const connectionText = document.getElementById('connectionText');
+        const showPasswordCheckbox = document.getElementById('showPassword');
+        const passwordInput = document.getElementById('password');
+
+        // Show/hide password
+        showPasswordCheckbox.addEventListener('change', function() {
+            passwordInput.type = this.checked ? 'text' : 'password';
+        });
+
+        // Toggle static IP section
+        ipConfigSelect.addEventListener('change', function() {
+            if (this.value === 'static') {
+                staticIpSection.classList.add('show');
+                // Set default values if empty
+                if (!document.getElementById('ipAddress').value) {
+                    document.getElementById('ipAddress').value = '192.168.1.100';
+                    document.getElementById('gateway').value = '192.168.1.1';
+                    document.getElementById('subnet').value = '255.255.255.0';
+                    document.getElementById('primaryDNS').value = '8.8.8.8';
+                }
             } else {
-                staticFields.classList.remove('show');
+                staticIpSection.classList.remove('show');
+            }
+        });
+
+        // WiFi mode change
+        wifiModeSelect.addEventListener('change', function() {
+            if (this.value === 'AP') {
+                document.getElementById('ssid').placeholder = 'Smart Water Tank v3.0';
+                // For AP mode, suggest different default IP
+                if (ipConfigSelect.value === 'static') {
+                    document.getElementById('ipAddress').value = '192.168.1.1';
+                    document.getElementById('gateway').value = '192.168.1.1';
+                }
+            } else {
+                document.getElementById('ssid').placeholder = 'Your WiFi Network';
+            }
+        });
+
+        // Show status message
+        function showStatus(message, type) {
+            statusMessage.textContent = message;
+            statusMessage.className = `status ${type} show`;
+        }
+
+        // Update connection status
+        function updateConnectionStatus(connected) {
+            if (connected) {
+                connectionDot.classList.add('connected');
+                connectionText.textContent = 'Connected to device';
+            } else {
+                connectionDot.classList.remove('connected');
+                connectionText.textContent = 'Disconnected';
             }
         }
 
-        function showStatus(message, type) {
-            const status = document.getElementById('status');
-            status.textContent = message;
-            status.className = `status ${type}`;
-        }
-
+        // Connect to WebSocket
         function connectWebSocket() {
-            ws = new WebSocket('ws://192.168.1.1:81');
+            const wsUrl = 'ws://192.168.1.1:81';
+            console.log('Connecting to:', wsUrl);
             
+            ws = new WebSocket(wsUrl);
+
             ws.onopen = function() {
                 console.log('WebSocket connected');
-                showStatus('Connected to device', 'success');
+                updateConnectionStatus(true);
+                reconnectAttempts = 0;
+                showStatus('Connected to device successfully', 'success');
+                
+                // Request current WiFi configuration
+                setTimeout(() => {
+                    if (ws.readyState === WebSocket.OPEN) {
+                        ws.send('getWiFiConfig');
+                    }
+                }, 500);
             };
-            
+
             ws.onmessage = function(event) {
                 console.log('Received:', event.data);
+                
                 try {
                     const data = JSON.parse(event.data);
-                    if (data.status === 'success') {
-                        showStatus('Configuration saved successfully! Device will restart...', 'success');
-                        setTimeout(() => {
-                            showStatus('Please wait for device restart...', 'success');
-                        }, 2000);
-                    } else if (data.status === 'error') {
-                        showStatus('Error: ' + data.message, 'error');
+                    
+                    if (data.type === 'wifiConfig') {
+                        // Populate form with current settings
+                        document.getElementById('wifiMode').value = data.wifiMode || 'AP';
+                        document.getElementById('ssid').value = data.ssid || '';
+                        document.getElementById('password').value = data.password || '';
+                        
+                        if (data.staticIP && data.staticIP !== '0.0.0.0') {
+                            ipConfigSelect.value = 'static';
+                            staticIpSection.classList.add('show');
+                            document.getElementById('ipAddress').value = data.staticIP || '';
+                            document.getElementById('gateway').value = data.gateway || '';
+                            document.getElementById('subnet').value = data.subnet || '';
+                            document.getElementById('primaryDNS').value = data.primaryDNS || '';
+                        }
+                        
+                        showStatus('Current configuration loaded', 'info');
+                        
+                    } else if (data.type === 'wifiConfigUpdate') {
+                        if (data.status === 'success') {
+                            showStatus('✓ ' + data.message, 'success');
+                            saveButton.disabled = false;
+                            
+                            // Suggest restart
+                            setTimeout(() => {
+                                showStatus('Configuration saved! Click "Restart Device" to apply changes.', 'info');
+                            }, 2000);
+                        } else {
+                            showStatus('✗ ' + data.message, 'error');
+                            saveButton.disabled = false;
+                        }
+                        
+                    } else if (data.type === 'systemReset') {
+                        showStatus('Device is restarting... Please reconnect in 10 seconds.', 'info');
+                        ws.close();
                     }
+                    
                 } catch (e) {
                     console.log('Non-JSON message:', event.data);
                 }
             };
-            
+
             ws.onerror = function(error) {
                 console.error('WebSocket error:', error);
-                showStatus('Connection error. Please check if device is running.', 'error');
+                updateConnectionStatus(false);
+                showStatus('Connection error. Please check device.', 'error');
             };
-            
+
             ws.onclose = function() {
                 console.log('WebSocket disconnected');
-                showStatus('Connection lost', 'error');
+                updateConnectionStatus(false);
+                
+                // Attempt reconnection
+                if (reconnectAttempts < maxReconnectAttempts) {
+                    reconnectAttempts++;
+                    showStatus(`Connection lost. Reconnecting... (${reconnectAttempts}/${maxReconnectAttempts})`, 'error');
+                    setTimeout(connectWebSocket, 3000);
+                } else {
+                    showStatus('Unable to connect. Please check if device is in configuration mode.', 'error');
+                }
             };
         }
 
+        // Validate IP address
+        function isValidIP(ip) {
+            const parts = ip.split('.');
+            if (parts.length !== 4) return false;
+            
+            return parts.every(part => {
+                const num = parseInt(part, 10);
+                return num >= 0 && num <= 255;
+            });
+        }
+
+        // Send configuration
         function sendConfiguration() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                showStatus('Not connected to device. Please wait...', 'error');
+                return false;
+            }
+
+            const formData = {
+                MODE: wifiModeSelect.value,
+                SSID: document.getElementById('ssid').value,
+                PASS: document.getElementById('password').value
+            };
+
+            // Validate password length
+            if (formData.PASS.length < 8) {
+                showStatus('Password must be at least 8 characters', 'error');
+                return false;
+            }
+
+            // Add static IP configuration if enabled
+            if (ipConfigSelect.value === 'static') {
+                const ipAddress = document.getElementById('ipAddress').value;
+                const gateway = document.getElementById('gateway').value;
+                const subnet = document.getElementById('subnet').value;
+                const dns = document.getElementById('primaryDNS').value;
+
+                // Validate IP addresses
+                if (!isValidIP(ipAddress) || !isValidIP(gateway) || !isValidIP(subnet) || !isValidIP(dns)) {
+                    showStatus('Invalid IP address format', 'error');
+                    return false;
+                }
+
+                const ipParts = ipAddress.split('.');
+                formData.SIP0 = parseInt(ipParts[0]);
+                formData.SIP1 = parseInt(ipParts[1]);
+                formData.SIP2 = parseInt(ipParts[2]);
+                formData.SIP3 = parseInt(ipParts[3]);
+
+                const gwParts = gateway.split('.');
+                formData.SG0 = parseInt(gwParts[0]);
+                formData.SG1 = parseInt(gwParts[1]);
+                formData.SG2 = parseInt(gwParts[2]);
+                formData.SG3 = parseInt(gwParts[3]);
+
+                const snParts = subnet.split('.');
+                formData.SS0 = parseInt(snParts[0]);
+                formData.SS1 = parseInt(snParts[1]);
+                formData.SS2 = parseInt(snParts[2]);
+                formData.SS3 = parseInt(snParts[3]);
+
+                const dnsParts = dns.split('.');
+                formData.SPD0 = parseInt(dnsParts[0]);
+                formData.SPD1 = parseInt(dnsParts[1]);
+                formData.SPD2 = parseInt(dnsParts[2]);
+                formData.SPD3 = parseInt(dnsParts[3]);
+            }
+
+            console.log('Sending configuration:', formData);
+            ws.send(JSON.stringify(formData));
+            showStatus('Sending configuration...', 'info');
+            saveButton.disabled = true;
+
+            return true;
+        }
+
+        // Form submit handler
+        wifiForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            sendConfiguration();
+        });
+
+        // Restart button handler
+        restartButton.addEventListener('click', function() {
             if (!ws || ws.readyState !== WebSocket.OPEN) {
                 showStatus('Not connected to device', 'error');
                 return;
             }
 
-            const formData = {
-                MODE: document.getElementById('wifiMode').value,
-                SSID: document.getElementById('ssid').value,
-                PASS: document.getElementById('password').value,
-                IPType: document.getElementById('ipType').value
-            };
-
-            // Add static IP fields if static IP is selected
-            if (formData.IPType === 'static') {
-                formData.SIP0 = parseInt(document.getElementById('ipAddress').value.split('.')[0]);
-                formData.SIP1 = parseInt(document.getElementById('ipAddress').value.split('.')[1]);
-                formData.SIP2 = parseInt(document.getElementById('ipAddress').value.split('.')[2]);
-                formData.SIP3 = parseInt(document.getElementById('ipAddress').value.split('.')[3]);
-                
-                formData.SG0 = parseInt(document.getElementById('gateway').value.split('.')[0]);
-                formData.SG1 = parseInt(document.getElementById('gateway').value.split('.')[1]);
-                formData.SG2 = parseInt(document.getElementById('gateway').value.split('.')[2]);
-                formData.SG3 = parseInt(document.getElementById('gateway').value.split('.')[3]);
-                
-                formData.SS0 = parseInt(document.getElementById('subnet').value.split('.')[0]);
-                formData.SS1 = parseInt(document.getElementById('subnet').value.split('.')[1]);
-                formData.SS2 = parseInt(document.getElementById('subnet').value.split('.')[2]);
-                formData.SS3 = parseInt(document.getElementById('subnet').value.split('.')[3]);
-                
-                formData.SPD0 = parseInt(document.getElementById('dns1').value.split('.')[0]);
-                formData.SPD1 = parseInt(document.getElementById('dns1').value.split('.')[1]);
-                formData.SPD2 = parseInt(document.getElementById('dns1').value.split('.')[2]);
-                formData.SPD3 = parseInt(document.getElementById('dns1').value.split('.')[3]);
+            if (confirm('Are you sure you want to restart the device?')) {
+                showStatus('Sending restart command...', 'info');
+                ws.send('systemReset');
             }
+        });
 
-            ws.send(JSON.stringify(formData));
-            showStatus('Sending configuration...', 'success');
-        }
-
-        // Initialize
+        // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
             connectWebSocket();
             
-            document.getElementById('wifiForm').addEventListener('submit', function(e) {
-                e.preventDefault();
-                sendConfiguration();
-            });
+            // Set default values
+            document.getElementById('ssid').value = 'Smart Water Tank v3.0';
+            document.getElementById('password').value = '00000000';
         });
     </script>
 </body>
