@@ -3,6 +3,7 @@ import { useWebSocket } from '../context/useWebSocket';
 import { ConnectionModal } from './ConnectionModal';
 import { TroubleshootingGuide } from './TroubleshootingGuide';
 import { NetworkInfo } from './NetworkInfo';
+import { DeviceNotFoundScreen } from './DeviceNotFoundScreen';
 import { Wifi, WifiOff, AlertTriangle, RefreshCw, Settings, HelpCircle, Info } from 'lucide-react';
 import { testConnection, discoverEsp32Devices } from '../utils/connectionTest';
 
@@ -21,8 +22,15 @@ export const ConnectionGuard: React.FC<ConnectionGuardProps> = ({ children }) =>
   const [showNetworkInfo, setShowNetworkInfo] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<string>('');
+  const [isFirstConnection, setIsFirstConnection] = useState(true);
+  const [autoReconnectAttempts, setAutoReconnectAttempts] = useState(0);
+  const [isAutoReconnecting, setIsAutoReconnecting] = useState(false);
+  const [showDeviceNotFound, setShowDeviceNotFound] = useState(false);
+  const [backgroundReconnectTimeout, setBackgroundReconnectTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [isBackgroundReconnecting, setIsBackgroundReconnecting] = useState(false);
 
   const maxConnectionAttempts = 3;
+  const maxAutoReconnectAttempts = 5;
 
   const handleScanForDevices = useCallback(async () => {
     setIsScanning(true);
@@ -54,12 +62,33 @@ export const ConnectionGuard: React.FC<ConnectionGuardProps> = ({ children }) =>
     }
   }, [connect]);
 
-  // Auto-scan for devices on first load
+  // Check if this is first connection on mount
   useEffect(() => {
-    if (!isConnected && connectionAttempts === 0) {
+    const hasConnectedBefore = localStorage.getItem('hasConnectedBefore');
+    if (hasConnectedBefore) {
+      setIsFirstConnection(false);
+    }
+  }, []);
+
+
+  // Listen for connection modal requests from Dashboard
+  useEffect(() => {
+    const handleOpenConnectionModal = () => {
+      setShowConnectionModal(true);
+    };
+
+    window.addEventListener('openConnectionModal', handleOpenConnectionModal);
+    return () => {
+      window.removeEventListener('openConnectionModal', handleOpenConnectionModal);
+    };
+  }, []);
+
+  // Auto-scan for devices on first load only
+  useEffect(() => {
+    if (!isConnected && connectionAttempts === 0 && isFirstConnection) {
       handleScanForDevices();
     }
-  }, [isConnected, connectionAttempts, handleScanForDevices]);
+  }, [isConnected, connectionAttempts, isFirstConnection, handleScanForDevices]);
 
   // Monitor connection status changes
   useEffect(() => {
@@ -67,16 +96,174 @@ export const ConnectionGuard: React.FC<ConnectionGuardProps> = ({ children }) =>
       setConnectionStatus('Connected successfully!');
       setIsConnecting(false);
       setIsScanning(false);
-    } else if (appState.error) {
+      setIsAutoReconnecting(false);
+      setAutoReconnectAttempts(0);
+      setShowDeviceNotFound(false); // Hide device not found screen
+      stopBackgroundReconnection(); // Stop background reconnection
+      // Clear reconnection status
+      window.dispatchEvent(new CustomEvent('reconnectionStatus', { 
+        detail: { 
+          status: '',
+          isReconnecting: false,
+          attempt: 0,
+          maxAttempts: 0
+        } 
+      }));
+      // Mark that we've connected before
+      localStorage.setItem('hasConnectedBefore', 'true');
+      setIsFirstConnection(false);
+    } else if (appState.error && isFirstConnection) {
       setConnectionStatus(`Connection failed: ${appState.error}`);
       setIsConnecting(false);
     }
-  }, [isConnected, appState.error]);
+  }, [isConnected, appState.error, isFirstConnection]);
+
+  // Auto-reconnection function
+  const handleAutoReconnect = useCallback(async () => {
+    const storedHost = localStorage.getItem('tankHost');
+    console.log('ConnectionGuard: handleAutoReconnect called', { storedHost, isAutoReconnecting });
+    
+    if (!storedHost || isAutoReconnecting) {
+      console.log('ConnectionGuard: Skipping auto-reconnect - no stored host or already reconnecting');
+      return;
+    }
+
+    console.log('ConnectionGuard: Starting auto-reconnection process');
+    setIsAutoReconnecting(true);
+    setAutoReconnectAttempts(prev => prev + 1);
+    const statusMessage = `Attempting to reconnect... (${autoReconnectAttempts + 1}/${maxAutoReconnectAttempts})`;
+    setConnectionStatus(statusMessage);
+    
+    // Send reconnection status to Dashboard
+    window.dispatchEvent(new CustomEvent('reconnectionStatus', { 
+      detail: { 
+        status: statusMessage,
+        isReconnecting: true,
+        attempt: autoReconnectAttempts + 1,
+        maxAttempts: maxAutoReconnectAttempts
+      } 
+    }));
+
+    // Wait a bit before attempting reconnection with exponential backoff
+    const delay = Math.min(2000 * Math.pow(1.5, autoReconnectAttempts), 10000); // Max 10 seconds
+    console.log(`ConnectionGuard: Waiting ${delay}ms before reconnecting to ${storedHost}`);
+    setTimeout(() => {
+      console.log(`ConnectionGuard: Attempting reconnection to ${storedHost} (attempt ${autoReconnectAttempts + 1}/${maxAutoReconnectAttempts})`);
+      connect(storedHost);
+      setIsAutoReconnecting(false);
+    }, delay);
+  }, [connect, autoReconnectAttempts, isAutoReconnecting]);
+
+  // Cleanup function to stop background reconnection
+  const stopBackgroundReconnection = useCallback(() => {
+    if (backgroundReconnectTimeout) {
+      console.log('ConnectionGuard: Stopping background reconnection');
+      clearTimeout(backgroundReconnectTimeout);
+      setBackgroundReconnectTimeout(null);
+    }
+    setIsBackgroundReconnecting(false);
+  }, [backgroundReconnectTimeout]);
+
+  // Background reconnection function
+  const startBackgroundReconnection = useCallback(() => {
+    const storedHost = localStorage.getItem('tankHost');
+    if (!storedHost || isBackgroundReconnecting) return;
+
+    // Stop any existing background reconnection
+    stopBackgroundReconnection();
+
+    console.log('ConnectionGuard: Starting background reconnection');
+    setIsBackgroundReconnecting(true);
+    
+    const backgroundReconnect = () => {
+      // Check if we're still in device not found state and not connected
+      if (!showDeviceNotFound || isConnected) {
+        console.log('ConnectionGuard: Background reconnection no longer needed');
+        setBackgroundReconnectTimeout(null);
+        setIsBackgroundReconnecting(false);
+        return;
+      }
+
+      console.log('ConnectionGuard: Background reconnection attempt');
+      connect(storedHost);
+      
+      // Schedule next attempt only if still needed
+      if (showDeviceNotFound && !isConnected) {
+        const timeout = setTimeout(backgroundReconnect, 30000);
+        setBackgroundReconnectTimeout(timeout);
+      } else {
+        setIsBackgroundReconnecting(false);
+      }
+    };
+
+    // Start first attempt after 5 seconds
+    const initialTimeout = setTimeout(backgroundReconnect, 5000);
+    setBackgroundReconnectTimeout(initialTimeout);
+  }, [connect, isConnected, showDeviceNotFound, stopBackgroundReconnection, isBackgroundReconnecting]);
+
+  // Handle auto-reconnection when connection is lost
+  useEffect(() => {
+    console.log('ConnectionGuard: Checking auto-reconnection conditions:', {
+      isConnected,
+      hasError: !!appState.error,
+      error: appState.error,
+      isFirstConnection,
+      isConnecting,
+      autoReconnectAttempts,
+      maxAutoReconnectAttempts
+    });
+
+        if (!isConnected && appState.error && !isFirstConnection && !isConnecting && !isBackgroundReconnecting) {
+          console.log('ConnectionGuard: Connection lost, starting auto-reconnection process');
+          setConnectionStatus(`Connection lost: ${appState.error}`);
+          setIsConnecting(false);
+          
+          // Start auto-reconnection process
+          if (autoReconnectAttempts < maxAutoReconnectAttempts) {
+            console.log(`ConnectionGuard: Starting auto-reconnection attempt ${autoReconnectAttempts + 1}/${maxAutoReconnectAttempts}`);
+            handleAutoReconnect();
+          } else {
+            console.log('ConnectionGuard: Max auto-reconnection attempts reached, showing device not found screen');
+            // Show device not found screen and start background reconnection
+            setShowDeviceNotFound(true);
+            setLastError(`Unable to reconnect after ${maxAutoReconnectAttempts} attempts. Please check your connection.`);
+            // Clear reconnection status
+            window.dispatchEvent(new CustomEvent('reconnectionStatus', { 
+              detail: { 
+                status: '',
+                isReconnecting: false,
+                attempt: 0,
+                maxAttempts: 0
+              } 
+            }));
+            // Start background reconnection
+            startBackgroundReconnection();
+          }
+        }
+  }, [isConnected, appState.error, isFirstConnection, isConnecting, autoReconnectAttempts, handleAutoReconnect, isBackgroundReconnecting, startBackgroundReconnection]);
+
+  // Cleanup effect to stop background reconnection on unmount
+  useEffect(() => {
+    return () => {
+      stopBackgroundReconnection();
+    };
+  }, [stopBackgroundReconnection]);
 
   const handleManualConnect = (host: string) => {
     setLastError(null);
     setConnectionStatus(`Connecting to ${host}...`);
     setIsConnecting(true);
+    setAutoReconnectAttempts(0); // Reset auto-reconnect attempts
+    setIsAutoReconnecting(false); // Stop any ongoing auto-reconnection
+    // Clear reconnection status
+    window.dispatchEvent(new CustomEvent('reconnectionStatus', { 
+      detail: { 
+        status: '',
+        isReconnecting: false,
+        attempt: 0,
+        maxAttempts: 0
+      } 
+    }));
     connect(host);
     setConnectionAttempts(prev => prev + 1);
     setShowConnectionModal(false);
@@ -100,17 +287,33 @@ export const ConnectionGuard: React.FC<ConnectionGuardProps> = ({ children }) =>
     console.log('Resetting connection...');
     disconnect();
     setConnectionAttempts(0);
+    setAutoReconnectAttempts(0);
+    setIsAutoReconnecting(false);
     setLastError(null);
     setConnectionStatus('');
     setIsConnecting(false);
     setIsScanning(false);
+    setDiscoveredDevices([]);
+    setShowDeviceNotFound(false);
+    stopBackgroundReconnection(); // Stop background reconnection
     // Clear stored host to prevent auto-reconnect
     localStorage.removeItem('tankHost');
   };
 
+  // Handlers for device not found screen
+  const handleRetryFromDeviceNotFound = () => {
+    const storedHost = localStorage.getItem('tankHost');
+    if (storedHost) {
+      handleManualConnect(storedHost);
+    }
+  };
 
-  // Show connection screen if not connected
-  if (!isConnected) {
+  const handleOpenConnectionSettingsFromDeviceNotFound = () => {
+    setShowConnectionModal(true);
+  };
+
+  // Show connection screen only on first connection
+  if (!isConnected && isFirstConnection) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
         <div className="max-w-md w-full">
@@ -397,6 +600,66 @@ export const ConnectionGuard: React.FC<ConnectionGuardProps> = ({ children }) =>
     );
   }
 
-  // Show dashboard if connected
-  return <>{children}</>;
+  // Show device not found screen if connection failed after max attempts
+  if (showDeviceNotFound) {
+    return (
+      <>
+        <DeviceNotFoundScreen
+          onOpenConnectionSettings={handleOpenConnectionSettingsFromDeviceNotFound}
+          onRetryConnection={handleRetryFromDeviceNotFound}
+          isRetrying={isConnecting}
+          lastError={lastError}
+        />
+        <ConnectionModal
+          isOpen={showConnectionModal}
+          onClose={() => setShowConnectionModal(false)}
+          onConnect={(host) => {
+            handleManualConnect(host);
+            setAutoReconnectAttempts(0); // Reset auto-reconnect attempts
+          }}
+          currentHost={localStorage.getItem('tankHost') || ''}
+        />
+      </>
+    );
+  }
+
+  // Show dashboard if connected, or show connection modal for subsequent disconnections
+  return (
+    <>
+      {children}
+      
+      {/* Connection Modal for non-first connection disconnections */}
+      {!isConnected && !isFirstConnection && !showDeviceNotFound && (
+        <ConnectionModal
+          isOpen={showConnectionModal}
+          onClose={() => setShowConnectionModal(false)}
+          onConnect={(host) => {
+            handleManualConnect(host);
+            setAutoReconnectAttempts(0); // Reset auto-reconnect attempts
+          }}
+          currentHost={localStorage.getItem('tankHost') || ''}
+        />
+      )}
+      
+      {/* Network Info Modal */}
+      <NetworkInfo
+        isOpen={showNetworkInfo}
+        onClose={() => setShowNetworkInfo(false)}
+      />
+      
+      {/* Troubleshooting Guide Modal */}
+      <TroubleshootingGuide
+        isOpen={showTroubleshooting}
+        onClose={() => setShowTroubleshooting(false)}
+        onTestConnection={async (host: string) => {
+          try {
+            const result = await testConnection(host);
+            return result.success;
+          } catch {
+            return false;
+          }
+        }}
+      />
+    </>
+  );
 };

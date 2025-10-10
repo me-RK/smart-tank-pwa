@@ -10,9 +10,6 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const [reconnectInterval, setReconnectInterval] = useState<NodeJS.Timeout | null>(null);
 
-  const maxReconnectAttempts = 10;
-  const reconnectDelay = 2000;
-  const reconnectBackoff = 1.5;
 
   // Parse incoming WebSocket messages - Enhanced for v3.0 firmware protocol
   const handleMessage = useCallback((event: MessageEvent) => {
@@ -313,10 +310,20 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Connect to WebSocket
   const connect = useCallback((host: string) => {
     try {
-      // Check if already connecting or connected
-      if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
-        return;
+      // Clean up any existing connection first
+      if (ws) {
+        ws.close();
+        setWs(null);
       }
+      
+      // Clear any existing reconnection intervals
+      if (reconnectInterval) {
+        clearTimeout(reconnectInterval);
+        setReconnectInterval(null);
+      }
+      
+      // Reset reconnection attempts
+      setReconnectAttempts(0);
       
       // Store host in localStorage for persistence
       localStorage.setItem('tankHost', host);
@@ -344,31 +351,12 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setAppState((prev: AppState) => ({ 
           ...prev, 
           isConnected: false,
-          systemStatus: { ...prev.systemStatus, connected: false }
+          systemStatus: { ...prev.systemStatus, connected: false },
+          error: event.code !== 1000 ? `Connection lost (code: ${event.code})` : null
         }));
         
-        // Only attempt to reconnect if not manually disconnected and not a clean close
-        if (reconnectAttempts < maxReconnectAttempts && event.code !== 1000 && event.code !== 1006) {
-          const delay = Math.min(reconnectDelay * Math.pow(reconnectBackoff, reconnectAttempts), 30000);
-          console.log(`Attempting to reconnect in ${delay}ms (attempt ${reconnectAttempts + 1}/${maxReconnectAttempts})`);
-          
-          const interval = setTimeout(() => {
-            setReconnectAttempts(prev => prev + 1);
-            const storedHost = localStorage.getItem('tankHost');
-            if (storedHost) {
-              connect(storedHost);
-            }
-          }, delay);
-          setReconnectInterval(interval);
-        } else if (reconnectAttempts >= maxReconnectAttempts) {
-          console.log('Max reconnection attempts reached. Stopping reconnection.');
-          setAppState((prev: AppState) => ({ 
-            ...prev, 
-            error: 'Failed to reconnect after multiple attempts. Please check your connection and try again.'
-          }));
-        } else {
-          console.log('Connection closed cleanly or too many failures. Not reconnecting.');
-        }
+        // Let ConnectionGuard handle reconnection logic
+        console.log(`WebSocket closed with code ${event.code}. ConnectionGuard will handle reconnection.`);
       };
       newWs.onerror = handleError;
       newWs.onmessage = handleMessage;

@@ -3,14 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { useWebSocket } from '../context/useWebSocket';
 import { StatusCard } from '../components/StatusCard';
 import { TankLevelCard } from '../components/TankLevelCard';
-import { ConnectionModal } from '../components/ConnectionModal';
-import { Settings, Wifi, WifiOff, RefreshCw } from 'lucide-react';
+import { Settings, Wifi, WifiOff, RefreshCw, Loader2, WifiIcon } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { appState, sendMessage, connect, disconnect, isConnected } = useWebSocket();
-  const [showConnectionModal, setShowConnectionModal] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [reconnectionStatus, setReconnectionStatus] = useState<string>('');
+  const [isAutoReconnecting, setIsAutoReconnecting] = useState(false);
   
   // Auto-sync functionality
   const [syncInterval, setSyncInterval] = useState<number>(() => {
@@ -70,6 +71,35 @@ export const Dashboard: React.FC = () => {
     }
   };
 
+  // Connection handling functions
+  const handleConnect = async () => {
+    const lastHost = localStorage.getItem('tankHost');
+    if (!lastHost) {
+      // Trigger connection modal through ConnectionGuard
+      window.dispatchEvent(new CustomEvent('openConnectionModal'));
+      return;
+    }
+
+    setIsConnecting(true);
+    try {
+      await connect(lastHost);
+    } catch (error) {
+      console.error('Connection failed:', error);
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  const handleDisconnect = () => {
+    disconnect();
+  };
+
+  const handleConnectionSettings = () => {
+    // Trigger connection modal through ConnectionGuard
+    window.dispatchEvent(new CustomEvent('openConnectionModal'));
+  };
+
+
   // Effect to manage auto-sync based on connection status
   useEffect(() => {
     if (isConnected) {
@@ -98,6 +128,19 @@ export const Dashboard: React.FC = () => {
     };
   }, []);
 
+  // Listen for reconnection status updates from ConnectionGuard
+  useEffect(() => {
+    const handleReconnectionStatus = (event: CustomEvent) => {
+      setReconnectionStatus(event.detail.status);
+      setIsAutoReconnecting(event.detail.status !== '');
+    };
+
+    window.addEventListener('reconnectionStatus', handleReconnectionStatus as EventListener);
+    return () => {
+      window.removeEventListener('reconnectionStatus', handleReconnectionStatus as EventListener);
+    };
+  }, []);
+
 
   const handleMotorToggle = (motorNumber: 1 | 2) => {
     const currentMotorState = motorNumber === 1 ? appState.systemStatus.motor1Status : appState.systemStatus.motor2Status;
@@ -111,13 +154,6 @@ export const Dashboard: React.FC = () => {
 
 
 
-  const handleConnect = () => {
-    setShowConnectionModal(true);
-  };
-
-  const handleDisconnect = () => {
-    disconnect();
-  };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -134,45 +170,79 @@ export const Dashboard: React.FC = () => {
               </h1>
             </div>
 
-            <div className="flex items-center space-x-4">
-              {/* Connection Status */}
-              <div className="flex items-center space-x-2">
-                {isConnected ? (
-                  <Wifi className="w-5 h-5 text-green-500" />
-                ) : (
-                  <WifiOff className="w-5 h-5 text-red-500" />
+            <div className="flex items-center space-x-3">
+              {/* Connect/Disconnect Button with Settings */}
+              <div className="relative">
+                <button
+                  onClick={isConnected ? handleDisconnect : handleConnect}
+                  onMouseDown={(e) => {
+                    if (!isConnected && !isAutoReconnecting) {
+                      e.preventDefault();
+                      const timer = setTimeout(() => {
+                        handleConnectionSettings();
+                      }, 500); // Long press after 500ms
+                      
+                      const handleMouseUp = () => {
+                        clearTimeout(timer);
+                        document.removeEventListener('mouseup', handleMouseUp);
+                      };
+                      
+                      document.addEventListener('mouseup', handleMouseUp);
+                    }
+                  }}
+                  disabled={isConnecting || isAutoReconnecting}
+                  className={`
+                    flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors font-medium text-sm
+                    focus:outline-none focus:ring-2 focus:ring-offset-2
+                    ${isConnected 
+                      ? 'bg-red-500 hover:bg-red-600 text-white focus:ring-red-500' 
+                      : isAutoReconnecting
+                      ? 'bg-orange-500 text-white focus:ring-orange-500'
+                      : 'bg-blue-500 hover:bg-blue-600 text-white focus:ring-blue-500'
+                    }
+                    ${(isConnecting || isAutoReconnecting) ? 'opacity-50 cursor-not-allowed' : ''}
+                  `}
+                >
+                  {isConnecting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Connecting...</span>
+                    </>
+                  ) : isAutoReconnecting ? (
+                    <>
+                      <Wifi className="w-4 h-4 animate-pulse" />
+                      <span>Reconnecting...</span>
+                    </>
+                  ) : isConnected ? (
+                    <>
+                      <WifiOff className="w-4 h-4" />
+                      <span>Disconnect</span>
+                    </>
+                  ) : (
+                    <>
+                      <Wifi className="w-4 h-4" />
+                      <span>Connect</span>
+                    </>
+                  )}
+                </button>
+                
+                {/* Settings Icon Overlay for Connect Button */}
+                {!isConnected && !isConnecting && !isAutoReconnecting && (
+                  <button
+                    onClick={handleConnectionSettings}
+                    className="
+                      absolute -top-1 -right-1 w-5 h-5 bg-gray-600 hover:bg-gray-700
+                      text-white rounded-full flex items-center justify-center
+                      transition-colors text-xs
+                    "
+                    title="Connection Settings"
+                  >
+                    <WifiIcon className="w-3 h-3" />
+                  </button>
                 )}
-                <span className={`text-sm font-medium ${isConnected ? 'text-green-600' : 'text-red-600'}`}>
-                  {isConnected ? 'Connected' : 'Disconnected'}
-                </span>
               </div>
 
-              {/* Connection Controls */}
-              {!isConnected ? (
-                <button
-                  onClick={handleConnect}
-                  className="
-                    flex items-center space-x-2 px-4 py-2 bg-blue-500 hover:bg-blue-600
-                    text-white rounded-lg transition-colors font-medium text-sm
-                    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-                  "
-                >
-                  <Wifi className="w-4 h-4" />
-                  <span>Connect</span>
-                </button>
-              ) : (
-                <button
-                  onClick={handleDisconnect}
-                  className="
-                    flex items-center space-x-2 px-4 py-2 bg-red-500 hover:bg-red-600
-                    text-white rounded-lg transition-colors font-medium text-sm
-                    focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2
-                  "
-                >
-                  <WifiOff className="w-4 h-4" />
-                  <span>Disconnect</span>
-                </button>
-              )}
+
 
               {/* Settings Button */}
               <button
@@ -181,6 +251,7 @@ export const Dashboard: React.FC = () => {
                   p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200
                   hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors
                 "
+                title="System Settings"
               >
                 <Settings className="w-5 h-5" />
               </button>
@@ -489,25 +560,6 @@ export const Dashboard: React.FC = () => {
         </div>
 
 
-        {/* Connection Status */}
-        {!isConnected && (
-          <div className="mt-6 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <WifiOff className="w-5 h-5 text-yellow-600" />
-                <span className="text-sm text-yellow-700 dark:text-yellow-300 font-medium">
-                  Not connected to ESP32 device
-                </span>
-              </div>
-              <button
-                onClick={handleConnect}
-                className="px-3 py-1 bg-yellow-500 hover:bg-yellow-600 text-white text-sm rounded-md transition-colors"
-              >
-                Connect
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Error Display */}
         {appState.error && (
@@ -528,18 +580,16 @@ export const Dashboard: React.FC = () => {
             <span className="text-sm font-medium">Syncing data...</span>
           </div>
         )}
+
+        {/* Reconnection Status Indicator */}
+        {reconnectionStatus && (
+          <div className="fixed bottom-4 left-4 bg-orange-500 text-white px-4 py-2 rounded-lg shadow-lg flex items-center space-x-2">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span className="text-sm font-medium">{reconnectionStatus}</span>
+          </div>
+        )}
       </main>
 
-      {/* Connection Modal */}
-      <ConnectionModal
-        isOpen={showConnectionModal}
-        onClose={() => setShowConnectionModal(false)}
-        onConnect={(host) => {
-          connect(host);
-          setShowConnectionModal(false);
-        }}
-        currentHost={localStorage.getItem('tankHost') || ''}
-      />
     </div>
   );
 };

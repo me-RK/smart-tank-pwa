@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { X, Wifi, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
-import { testConnection } from '../utils/connectionTest';
+import { X, Wifi, AlertCircle, CheckCircle, Loader2, Search } from 'lucide-react';
+import { testConnection, discoverEsp32Devices } from '../utils/connectionTest';
 
 interface ConnectionModalProps {
   isOpen: boolean;
@@ -19,6 +19,9 @@ export const ConnectionModal: React.FC<ConnectionModalProps> = ({
   const [error, setError] = useState('');
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [discoveredDevices, setDiscoveredDevices] = useState<string[]>([]);
+  const [scanStatus, setScanStatus] = useState<string>('');
 
   const handleTestConnection = async () => {
     if (!host.trim()) {
@@ -44,6 +47,36 @@ export const ConnectionModal: React.FC<ConnectionModalProps> = ({
     }
   };
 
+  const handleScanForDevices = async () => {
+    setIsScanning(true);
+    setError('');
+    setScanStatus('Scanning for ESP32 devices...');
+    setDiscoveredDevices([]);
+    
+    try {
+      const devices = await discoverEsp32Devices();
+      setDiscoveredDevices(devices);
+      
+      if (devices.length > 0) {
+        setScanStatus(`Found ${devices.length} device(s)`);
+        // Auto-select the first discovered device
+        setHost(devices[0]);
+      } else {
+        setScanStatus('No ESP32 devices found');
+      }
+    } catch (error) {
+      console.error('Device scan failed:', error);
+      setError('Failed to scan for devices. Please check your network connection.');
+      setScanStatus('Scan failed');
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const handleDeviceSelect = (deviceIP: string) => {
+    setHost(deviceIP);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -67,6 +100,9 @@ export const ConnectionModal: React.FC<ConnectionModalProps> = ({
   const handleClose = () => {
     setError('');
     setHost(currentHost);
+    setDiscoveredDevices([]);
+    setScanStatus('');
+    setTestResult(null);
     onClose();
   };
 
@@ -114,6 +150,89 @@ export const ConnectionModal: React.FC<ConnectionModalProps> = ({
               <div className="flex items-center space-x-2 mt-2 text-red-600">
                 <AlertCircle className="w-4 h-4" />
                 <span className="text-sm">{error}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Auto Search Section */}
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-3">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Auto Search for Devices
+              </label>
+              <button
+                type="button"
+                onClick={handleScanForDevices}
+                disabled={isScanning}
+                className="
+                  flex items-center space-x-2 px-3 py-2 bg-green-500 hover:bg-green-600
+                  text-white rounded-lg transition-colors font-medium text-sm
+                  focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2
+                  disabled:opacity-50 disabled:cursor-not-allowed
+                "
+              >
+                {isScanning ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Scanning...</span>
+                  </>
+                ) : (
+                  <>
+                    <Search className="w-4 h-4" />
+                    <span>Scan Network</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Scan Status */}
+            {scanStatus && (
+              <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <div className="flex items-center space-x-2">
+                  {isScanning ? (
+                    <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />
+                  ) : (
+                    <Search className="w-4 h-4 text-blue-500" />
+                  )}
+                  <span className="text-sm text-blue-700 dark:text-blue-300 font-medium">
+                    {scanStatus}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Discovered Devices List */}
+            {discoveredDevices.length > 0 && (
+              <div className="mb-3">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Found Devices:
+                </label>
+                <div className="space-y-2">
+                  {discoveredDevices.map((deviceIP) => (
+                    <button
+                      key={deviceIP}
+                      type="button"
+                      onClick={() => handleDeviceSelect(deviceIP)}
+                      className={`
+                        w-full p-3 rounded-lg border transition-colors text-left
+                        ${host === deviceIP 
+                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' 
+                          : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
+                        }
+                      `}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <Wifi className="w-4 h-4" />
+                          <span className="font-mono text-sm">{deviceIP}</span>
+                        </div>
+                        {host === deviceIP && (
+                          <CheckCircle className="w-4 h-4 text-blue-500" />
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </div>
