@@ -102,20 +102,33 @@ String ipConfigType = "static"; // "static" or "dynamic"
  bool upperSensorAEnable = false;
  bool upperSensorBEnable = false;
  
- // Tank dimensions and levels (in cm)
- float upperTankHeightA = 75.0;
- float upperWaterFullHeightA = 70.0;
- float upperWaterEmptyHeightA = 5.0;
- float lowerTankHeightA = 75.0;
- float lowerWaterFullHeightA = 70.0;
- float lowerWaterEmptyHeightA = 5.0;
- 
- float upperTankHeightB = 75.0;
- float upperWaterFullHeightB = 70.0;
- float upperWaterEmptyHeightB = 5.0;
- float lowerTankHeightB = 75.0;
- float lowerWaterFullHeightB = 70.0;
- float lowerWaterEmptyHeightB = 5.0;
+// Tank dimensions and calibration (in cm)
+// Physical tank dimensions
+float upperTankHeightA = 75.0;        // Total height of upper tank A
+float lowerTankHeightA = 75.0;        // Total height of lower tank A
+float upperTankHeightB = 75.0;        // Total height of upper tank B
+float lowerTankHeightB = 75.0;        // Total height of lower tank B
+
+// Water level calibration points (distance from sensor to water surface)
+float upperWaterFullHeightA = 5.0;    // Distance when tank is full (cm from sensor)
+float upperWaterEmptyHeightA = 70.0;  // Distance when tank is empty (cm from sensor)
+float lowerWaterFullHeightA = 5.0;    // Distance when tank is full (cm from sensor)
+float lowerWaterEmptyHeightA = 70.0;  // Distance when tank is empty (cm from sensor)
+
+float upperWaterFullHeightB = 5.0;    // Distance when tank is full (cm from sensor)
+float upperWaterEmptyHeightB = 70.0;  // Distance when tank is empty (cm from sensor)
+float lowerWaterFullHeightB = 5.0;    // Distance when tank is full (cm from sensor)
+float lowerWaterEmptyHeightB = 70.0;  // Distance when tank is empty (cm from sensor)
+
+// Sensor calibration offsets (to compensate for sensor mounting position)
+float upperSensorOffsetA = 0.0;       // Offset for upper sensor A (cm)
+float lowerSensorOffsetA = 0.0;       // Offset for lower sensor A (cm)
+float upperSensorOffsetB = 0.0;       // Offset for upper sensor B (cm)
+float lowerSensorOffsetB = 0.0;       // Offset for lower sensor B (cm)
+
+// Sensor reading validation
+float minSensorReading = 20.0;        // Minimum valid sensor reading (mm)
+float maxSensorReading = 4000.0;      // Maximum valid sensor reading (mm)
  
  // Calculated water levels (percentage)
  float upperTankWaterLevelA = 0.0;
@@ -196,6 +209,11 @@ void sendWebSocketMessage(String msgType, JsonDocument& doc);
 void handleConfigurationUpdate(JsonDocument& doc);
 void handleWiFiConfigUpdate(JsonDocument& doc);
 String getWiFiStatusString(wl_status_t status);
+
+// Water level calculation functions
+float calculateWaterLevelPercentage(uint32_t sensorReadingMm, float fullDistanceCm, float emptyDistanceCm, float sensorOffsetCm);
+bool validateSensorReading(uint32_t sensorReadingMm);
+void updateWaterLevelCalculations(void);
  
  // Alert functions
  void doBuzzerAlert(uint8_t count, uint16_t onDelay, uint16_t offDelay) {
@@ -248,6 +266,104 @@ String getWiFiStatusString(wl_status_t status);
  
 void buzzerOff(void) {
   digitalWrite(buzzerPin, LOW);
+}
+
+// Water level calculation functions
+bool validateSensorReading(uint32_t sensorReadingMm) {
+  // Validate sensor reading is within reasonable range
+  if (sensorReadingMm < minSensorReading || sensorReadingMm > maxSensorReading) {
+    Serial.printf("Invalid sensor reading: %u mm (range: %.1f - %.1f mm)\n", 
+                  sensorReadingMm, minSensorReading, maxSensorReading);
+    return false;
+  }
+  return true;
+}
+
+float calculateWaterLevelPercentage(uint32_t sensorReadingMm, float fullDistanceCm, float emptyDistanceCm, float sensorOffsetCm) {
+  // Validate sensor reading first
+  if (!validateSensorReading(sensorReadingMm)) {
+    return -1.0; // Return -1 to indicate invalid reading
+  }
+  
+  // Convert sensor reading from mm to cm
+  float sensorDistanceCm = (sensorReadingMm / 10.0) + sensorOffsetCm;
+  
+  // Ensure calibration values are valid
+  if (fullDistanceCm >= emptyDistanceCm) {
+    Serial.printf("ERROR: Invalid calibration - full distance (%.1f) >= empty distance (%.1f)\n", 
+                  fullDistanceCm, emptyDistanceCm);
+    return -1.0;
+  }
+  
+  // Calculate water level percentage
+  // When sensor distance is at fullDistanceCm, tank is 100% full
+  // When sensor distance is at emptyDistanceCm, tank is 0% full
+  float waterLevelPercentage = 0.0;
+  
+  if (sensorDistanceCm <= fullDistanceCm) {
+    // Tank is full or overflowing
+    waterLevelPercentage = 100.0;
+  } else if (sensorDistanceCm >= emptyDistanceCm) {
+    // Tank is empty
+    waterLevelPercentage = 0.0;
+  } else {
+    // Calculate percentage based on distance
+    float totalRange = emptyDistanceCm - fullDistanceCm;
+    float currentRange = sensorDistanceCm - fullDistanceCm;
+    waterLevelPercentage = 100.0 - ((currentRange / totalRange) * 100.0);
+  }
+  
+  // Constrain to valid range
+  waterLevelPercentage = constrain(waterLevelPercentage, 0.0, 100.0);
+  
+  Serial.printf("Water Level Calc: Reading=%umm, Distance=%.1fcm, Full=%.1fcm, Empty=%.1fcm, Level=%.1f%%\n",
+                sensorReadingMm, sensorDistanceCm, fullDistanceCm, emptyDistanceCm, waterLevelPercentage);
+  
+  return waterLevelPercentage;
+}
+
+void updateWaterLevelCalculations(void) {
+  // This function can be called to recalculate all water levels
+  // Useful for when calibration values are updated
+  Serial.println("Updating water level calculations...");
+  
+  // Recalculate upper tank levels if sensors are enabled
+  if (upperSensorAEnable && sensorUpperTankA > 0) {
+    upperTankWaterLevelA = calculateWaterLevelPercentage(
+      sensorUpperTankA, 
+      upperWaterFullHeightA, 
+      upperWaterEmptyHeightA, 
+      upperSensorOffsetA
+    );
+  }
+  
+  if (upperSensorBEnable && sensorUpperTankB > 0) {
+    upperTankWaterLevelB = calculateWaterLevelPercentage(
+      sensorUpperTankB, 
+      upperWaterFullHeightB, 
+      upperWaterEmptyHeightB, 
+      upperSensorOffsetB
+    );
+  }
+  
+  // Recalculate lower tank levels if sensors are enabled
+  if (lowerSensorAEnable && sensorLowTankA > 0) {
+    lowerTankWaterLevelA = calculateWaterLevelPercentage(
+      sensorLowTankA, 
+      lowerWaterFullHeightA, 
+      lowerWaterEmptyHeightA, 
+      lowerSensorOffsetA
+    );
+  }
+  
+  if (lowerSensorBEnable && sensorLowTankB > 0) {
+    lowerTankWaterLevelB = calculateWaterLevelPercentage(
+      sensorLowTankB, 
+      lowerWaterFullHeightB, 
+      lowerWaterEmptyHeightB, 
+      lowerSensorOffsetB
+    );
+  }
 }
 
 // WiFi status decoder function
@@ -565,41 +681,45 @@ String getWiFiStatusString(wl_status_t status) {
    }
  }
  
- // Sensor reading functions
- void readLowTankHeightA() {
-   byte StartByte = 0;
-   byte MSByte = 0;
-   byte LSByte = 0;
-   byte CheckSum = 0;
- 
-   Serial2.flush();
-   Serial2.write(0x55);
-   delay(50);
- 
-   if (Serial2.available() >= 4) {
-     StartByte = Serial2.read();
-     if (StartByte == 0xFF) {
-       MSByte = Serial2.read();
-       LSByte = Serial2.read();
-       CheckSum = Serial2.read();
-       sensorLowTankA = MSByte * 256 + LSByte;
-       
-       // Calculate water level percentage
-       float sensorDistanceCm = sensorLowTankA / 10.0; // Convert mm to cm
-       float emptyDistance = lowerTankHeightA - lowerWaterEmptyHeightA;
-       float fullDistance = lowerTankHeightA - lowerWaterFullHeightA;
-       
-       // Map sensor distance to percentage (0-100%)
-       lowerTankWaterLevelA = map(sensorDistanceCm, fullDistance, emptyDistance, 100.0, 0.0);
-       lowerTankWaterLevelA = constrain(lowerTankWaterLevelA, 0.0, 100.0);
-       
-       Serial.printf("Lower Tank A: %.1f%% (Distance: %.1fcm)\n", lowerTankWaterLevelA, sensorDistanceCm);
-     } else {
-       Serial2.flush();
-     }
-   }
-   delay(readDelayA);
- }
+// Sensor reading functions
+void readLowTankHeightA() {
+  byte StartByte = 0;
+  byte MSByte = 0;
+  byte LSByte = 0;
+  byte CheckSum = 0;
+
+  Serial2.flush();
+  Serial2.write(0x55);
+  delay(50);
+
+  if (Serial2.available() >= 4) {
+    StartByte = Serial2.read();
+    if (StartByte == 0xFF) {
+      MSByte = Serial2.read();
+      LSByte = Serial2.read();
+      CheckSum = Serial2.read();
+      sensorLowTankA = MSByte * 256 + LSByte;
+      
+      // Calculate water level percentage using improved method
+      lowerTankWaterLevelA = calculateWaterLevelPercentage(
+        sensorLowTankA, 
+        lowerWaterFullHeightA, 
+        lowerWaterEmptyHeightA, 
+        lowerSensorOffsetA
+      );
+      
+      if (lowerTankWaterLevelA >= 0) {
+        Serial.printf("Lower Tank A: %.1f%% (Raw: %umm)\n", lowerTankWaterLevelA, sensorLowTankA);
+      } else {
+        Serial.printf("Lower Tank A: Invalid reading (Raw: %umm)\n", sensorLowTankA);
+        lowerTankWaterLevelA = 0.0; // Set to 0 for invalid readings
+      }
+    } else {
+      Serial2.flush();
+    }
+  }
+  delay(readDelayA);
+}
  
  void readLowTankHeightB() {
    byte StartByte = 0;
@@ -610,7 +730,7 @@ String getWiFiStatusString(wl_status_t status) {
    Serial.flush();
    Serial.write(0x55);
    delay(50);
- 
+
    if (Serial.available() >= 4) {
      StartByte = Serial.read();
      if (StartByte == 0xFF) {
@@ -619,16 +739,20 @@ String getWiFiStatusString(wl_status_t status) {
        CheckSum = Serial.read();
        sensorLowTankB = MSByte * 256 + LSByte;
        
-       // Calculate water level percentage
-       float sensorDistanceCm = sensorLowTankB / 10.0; // Convert mm to cm
-       float emptyDistance = lowerTankHeightB - lowerWaterEmptyHeightB;
-       float fullDistance = lowerTankHeightB - lowerWaterFullHeightB;
+       // Calculate water level percentage using improved method
+       lowerTankWaterLevelB = calculateWaterLevelPercentage(
+         sensorLowTankB, 
+         lowerWaterFullHeightB, 
+         lowerWaterEmptyHeightB, 
+         lowerSensorOffsetB
+       );
        
-       // Map sensor distance to percentage (0-100%)
-       lowerTankWaterLevelB = map(sensorDistanceCm, fullDistance, emptyDistance, 100.0, 0.0);
-       lowerTankWaterLevelB = constrain(lowerTankWaterLevelB, 0.0, 100.0);
-       
-       Serial.printf("Lower Tank B: %.1f%% (Distance: %.1fcm)\n", lowerTankWaterLevelB, sensorDistanceCm);
+       if (lowerTankWaterLevelB >= 0) {
+         Serial.printf("Lower Tank B: %.1f%% (Raw: %umm)\n", lowerTankWaterLevelB, sensorLowTankB);
+       } else {
+         Serial.printf("Lower Tank B: Invalid reading (Raw: %umm)\n", sensorLowTankB);
+         lowerTankWaterLevelB = 0.0; // Set to 0 for invalid readings
+       }
      } else {
        Serial.flush();
      }
@@ -667,29 +791,45 @@ String getWiFiStatusString(wl_status_t status) {
      Serial.println("Upper Sensor B enable state updated in NVS");
    }
  
-   // Process Tank A data
-   if (subData.sensorA) {
-     float sensorDistanceCm = subData.valueA / 10.0; // Convert mm to cm
-     float emptyDistance = upperTankHeightA - upperWaterEmptyHeightA;
-     float fullDistance = upperTankHeightA - upperWaterFullHeightA;
-     
-     upperTankWaterLevelA = map(sensorDistanceCm, fullDistance, emptyDistance, 100.0, 0.0);
-     upperTankWaterLevelA = constrain(upperTankWaterLevelA, 0.0, 100.0);
-     
-     Serial.printf("Upper Tank A: %.1f%% (Distance: %.1fcm)\n", upperTankWaterLevelA, sensorDistanceCm);
-   }
-   
-   // Process Tank B data
-   if (subData.sensorB) {
-     float sensorDistanceCm = subData.valueB / 10.0; // Convert mm to cm
-     float emptyDistance = upperTankHeightB - upperWaterEmptyHeightB;
-     float fullDistance = upperTankHeightB - upperWaterFullHeightB;
-     
-     upperTankWaterLevelB = map(sensorDistanceCm, fullDistance, emptyDistance, 100.0, 0.0);
-     upperTankWaterLevelB = constrain(upperTankWaterLevelB, 0.0, 100.0);
-     
-     Serial.printf("Upper Tank B: %.1f%% (Distance: %.1fcm)\n", upperTankWaterLevelB, sensorDistanceCm);
-   }
+  // Process Tank A data
+  if (subData.sensorA) {
+    sensorUpperTankA = subData.valueA; // Store raw sensor value
+    
+    // Calculate water level percentage using improved method
+    upperTankWaterLevelA = calculateWaterLevelPercentage(
+      subData.valueA, 
+      upperWaterFullHeightA, 
+      upperWaterEmptyHeightA, 
+      upperSensorOffsetA
+    );
+    
+    if (upperTankWaterLevelA >= 0) {
+      Serial.printf("Upper Tank A: %.1f%% (Raw: %umm)\n", upperTankWaterLevelA, subData.valueA);
+    } else {
+      Serial.printf("Upper Tank A: Invalid reading (Raw: %umm)\n", subData.valueA);
+      upperTankWaterLevelA = 0.0; // Set to 0 for invalid readings
+    }
+  }
+  
+  // Process Tank B data
+  if (subData.sensorB) {
+    sensorUpperTankB = subData.valueB; // Store raw sensor value
+    
+    // Calculate water level percentage using improved method
+    upperTankWaterLevelB = calculateWaterLevelPercentage(
+      subData.valueB, 
+      upperWaterFullHeightB, 
+      upperWaterEmptyHeightB, 
+      upperSensorOffsetB
+    );
+    
+    if (upperTankWaterLevelB >= 0) {
+      Serial.printf("Upper Tank B: %.1f%% (Raw: %umm)\n", upperTankWaterLevelB, subData.valueB);
+    } else {
+      Serial.printf("Upper Tank B: Invalid reading (Raw: %umm)\n", subData.valueB);
+      upperTankWaterLevelB = 0.0; // Set to 0 for invalid readings
+    }
+  }
  
    lastDataReceived = systemUptime; // Update timestamp of last data received
  }
@@ -900,13 +1040,63 @@ String getWiFiStatusString(wl_status_t status) {
      }
    }
    
-   if (doc.containsKey("lowerWaterEmptyHeightB")) {
-     float newValue = doc["lowerWaterEmptyHeightB"];
-     if (newValue != lowerWaterEmptyHeightB) {
-       lowerWaterEmptyHeightB = newValue;
-       configs.putFloat("LTWEHB", newValue);
-     }
-   }
+  if (doc.containsKey("lowerWaterEmptyHeightB")) {
+    float newValue = doc["lowerWaterEmptyHeightB"];
+    if (newValue != lowerWaterEmptyHeightB) {
+      lowerWaterEmptyHeightB = newValue;
+      configs.putFloat("LTWEHB", newValue);
+    }
+  }
+  
+  // Sensor calibration offsets
+  if (doc.containsKey("upperSensorOffsetA")) {
+    float newValue = doc["upperSensorOffsetA"];
+    if (newValue != upperSensorOffsetA) {
+      upperSensorOffsetA = newValue;
+      configs.putFloat("USOA", newValue);
+    }
+  }
+  
+  if (doc.containsKey("lowerSensorOffsetA")) {
+    float newValue = doc["lowerSensorOffsetA"];
+    if (newValue != lowerSensorOffsetA) {
+      lowerSensorOffsetA = newValue;
+      configs.putFloat("LSOA", newValue);
+    }
+  }
+  
+  if (doc.containsKey("upperSensorOffsetB")) {
+    float newValue = doc["upperSensorOffsetB"];
+    if (newValue != upperSensorOffsetB) {
+      upperSensorOffsetB = newValue;
+      configs.putFloat("USOB", newValue);
+    }
+  }
+  
+  if (doc.containsKey("lowerSensorOffsetB")) {
+    float newValue = doc["lowerSensorOffsetB"];
+    if (newValue != lowerSensorOffsetB) {
+      lowerSensorOffsetB = newValue;
+      configs.putFloat("LSOB", newValue);
+    }
+  }
+  
+  // Sensor validation limits
+  if (doc.containsKey("minSensorReading")) {
+    float newValue = doc["minSensorReading"];
+    if (newValue != minSensorReading) {
+      minSensorReading = newValue;
+      configs.putFloat("minSensor", newValue);
+    }
+  }
+  
+  if (doc.containsKey("maxSensorReading")) {
+    float newValue = doc["maxSensorReading"];
+    if (newValue != maxSensorReading) {
+      maxSensorReading = newValue;
+      configs.putFloat("maxSensor", newValue);
+    }
+  }
    
    // Sensor enable flags
    if (doc.containsKey("lowerSensorAEnable")) {
@@ -974,19 +1164,22 @@ String getWiFiStatusString(wl_status_t status) {
      }
    }
    
-   configs.end();
-   
-   // Send acknowledgment
-   JsonDocument response;
-   response["type"] = "configUpdate";
-   response["status"] = "success";
-   response["message"] = "Configuration updated successfully";
-   
-   String jsonString;
-   serializeJson(response, jsonString);
-   webSocket.sendTXT(clientNumGlobal, jsonString);
-   
-   Serial.println("Configuration update completed");
+  configs.end();
+  
+  // Recalculate water levels with new calibration values
+  updateWaterLevelCalculations();
+  
+  // Send acknowledgment
+  JsonDocument response;
+  response["type"] = "configUpdate";
+  response["status"] = "success";
+  response["message"] = "Configuration updated successfully";
+  
+  String jsonString;
+  serializeJson(response, jsonString);
+  webSocket.sendTXT(clientNumGlobal, jsonString);
+  
+  Serial.println("Configuration update completed");
  }
  
 // WiFi configuration update handler - FIXED VERSION
@@ -1246,10 +1439,20 @@ void handleWiFiConfigUpdate(JsonDocument& doc) {
          jsonDoc["upperWaterFullHeightB"] = upperWaterFullHeightB;
          jsonDoc["upperWaterEmptyHeightB"] = upperWaterEmptyHeightB;
          
-         // Tank dimensions - Lower B
-         jsonDoc["lowerTankHeightB"] = lowerTankHeightB;
-         jsonDoc["lowerWaterFullHeightB"] = lowerWaterFullHeightB;
-         jsonDoc["lowerWaterEmptyHeightB"] = lowerWaterEmptyHeightB;
+        // Tank dimensions - Lower B
+        jsonDoc["lowerTankHeightB"] = lowerTankHeightB;
+        jsonDoc["lowerWaterFullHeightB"] = lowerWaterFullHeightB;
+        jsonDoc["lowerWaterEmptyHeightB"] = lowerWaterEmptyHeightB;
+        
+        // Sensor calibration offsets
+        jsonDoc["upperSensorOffsetA"] = upperSensorOffsetA;
+        jsonDoc["lowerSensorOffsetA"] = lowerSensorOffsetA;
+        jsonDoc["upperSensorOffsetB"] = upperSensorOffsetB;
+        jsonDoc["lowerSensorOffsetB"] = lowerSensorOffsetB;
+        
+        // Sensor validation limits
+        jsonDoc["minSensorReading"] = minSensorReading;
+        jsonDoc["maxSensorReading"] = maxSensorReading;
          
          // Sensor enables
          jsonDoc["lowerSensorAEnabled"] = lowerSensorAEnable;
@@ -1531,25 +1734,35 @@ void countTaskFunction(void *pvParameters) {
      configs.putBool("UAE", false);
      configs.putBool("UBE", false);
      
-     // Tank dimensions - Upper Tank A
-     configs.putFloat("UTHA", 75.0);
-     configs.putFloat("UTWFHA", 70.0);
-     configs.putFloat("UTWEHA", 5.0);
-     
-     // Tank dimensions - Lower Tank A
-     configs.putFloat("LTHA", 75.0);
-     configs.putFloat("LTWFHA", 70.0);
-     configs.putFloat("LTWEHA", 5.0);
-     
-     // Tank dimensions - Upper Tank B
-     configs.putFloat("UTHB", 75.0);
-     configs.putFloat("UTWFHB", 70.0);
-     configs.putFloat("UTWEHB", 5.0);
-     
-     // Tank dimensions - Lower Tank B
-     configs.putFloat("LTHB", 75.0);
-     configs.putFloat("LTWFHB", 70.0);
-     configs.putFloat("LTWEHB", 5.0);
+    // Tank dimensions - Upper Tank A
+    configs.putFloat("UTHA", 75.0);
+    configs.putFloat("UTWFHA", 5.0);   // Distance when full
+    configs.putFloat("UTWEHA", 70.0);  // Distance when empty
+    
+    // Tank dimensions - Lower Tank A
+    configs.putFloat("LTHA", 75.0);
+    configs.putFloat("LTWFHA", 5.0);   // Distance when full
+    configs.putFloat("LTWEHA", 70.0);  // Distance when empty
+    
+    // Tank dimensions - Upper Tank B
+    configs.putFloat("UTHB", 75.0);
+    configs.putFloat("UTWFHB", 5.0);   // Distance when full
+    configs.putFloat("UTWEHB", 70.0);  // Distance when empty
+    
+    // Tank dimensions - Lower Tank B
+    configs.putFloat("LTHB", 75.0);
+    configs.putFloat("LTWFHB", 5.0);   // Distance when full
+    configs.putFloat("LTWEHB", 70.0);  // Distance when empty
+    
+    // Sensor calibration offsets
+    configs.putFloat("USOA", 0.0);     // Upper sensor offset A
+    configs.putFloat("LSOA", 0.0);     // Lower sensor offset A
+    configs.putFloat("USOB", 0.0);     // Upper sensor offset B
+    configs.putFloat("LSOB", 0.0);     // Lower sensor offset B
+    
+    // Sensor validation limits
+    configs.putFloat("minSensor", 20.0);
+    configs.putFloat("maxSensor", 4000.0);
      
     // WiFi configuration
     configs.putString("WIFIMode", "AP");
@@ -1621,20 +1834,30 @@ void countTaskFunction(void *pvParameters) {
    tankAAutomationEnabled = configs.getBool("tankAAutoEn", true);
    tankBAutomationEnabled = configs.getBool("tankBAutoEn", false);
    
-   // Tank dimensions
-   lowerTankHeightA = configs.getFloat("LTHA", 75.0);
-   lowerWaterFullHeightA = configs.getFloat("LTWFHA", 70.0);
-   lowerWaterEmptyHeightA = configs.getFloat("LTWEHA", 5.0);
-   upperTankHeightA = configs.getFloat("UTHA", 75.0);
-   upperWaterFullHeightA = configs.getFloat("UTWFHA", 70.0);
-   upperWaterEmptyHeightA = configs.getFloat("UTWEHA", 5.0);
-   
-   lowerTankHeightB = configs.getFloat("LTHB", 75.0);
-   lowerWaterFullHeightB = configs.getFloat("LTWFHB", 70.0);
-   lowerWaterEmptyHeightB = configs.getFloat("LTWEHB", 5.0);
-   upperTankHeightB = configs.getFloat("UTHB", 75.0);
-   upperWaterFullHeightB = configs.getFloat("UTWFHB", 70.0);
-   upperWaterEmptyHeightB = configs.getFloat("UTWEHB", 5.0);
+  // Tank dimensions
+  lowerTankHeightA = configs.getFloat("LTHA", 75.0);
+  lowerWaterFullHeightA = configs.getFloat("LTWFHA", 5.0);   // Distance when full
+  lowerWaterEmptyHeightA = configs.getFloat("LTWEHA", 70.0); // Distance when empty
+  upperTankHeightA = configs.getFloat("UTHA", 75.0);
+  upperWaterFullHeightA = configs.getFloat("UTWFHA", 5.0);   // Distance when full
+  upperWaterEmptyHeightA = configs.getFloat("UTWEHA", 70.0); // Distance when empty
+  
+  lowerTankHeightB = configs.getFloat("LTHB", 75.0);
+  lowerWaterFullHeightB = configs.getFloat("LTWFHB", 5.0);   // Distance when full
+  lowerWaterEmptyHeightB = configs.getFloat("LTWEHB", 70.0); // Distance when empty
+  upperTankHeightB = configs.getFloat("UTHB", 75.0);
+  upperWaterFullHeightB = configs.getFloat("UTWFHB", 5.0);   // Distance when full
+  upperWaterEmptyHeightB = configs.getFloat("UTWEHB", 70.0); // Distance when empty
+  
+  // Sensor calibration offsets
+  upperSensorOffsetA = configs.getFloat("USOA", 0.0);
+  lowerSensorOffsetA = configs.getFloat("LSOA", 0.0);
+  upperSensorOffsetB = configs.getFloat("USOB", 0.0);
+  lowerSensorOffsetB = configs.getFloat("LSOB", 0.0);
+  
+  // Sensor validation limits
+  minSensorReading = configs.getFloat("minSensor", 20.0);
+  maxSensorReading = configs.getFloat("maxSensor", 4000.0);
    
    // Sensor enables
    lowerSensorAEnable = configs.getBool("LAE", false);

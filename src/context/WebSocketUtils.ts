@@ -76,10 +76,20 @@ export const initialAppState: AppState = {
       upperTankB: false
     },
     tankDimensions: {
-      upperTankA: { height: 75, waterFullHeight: 70, waterEmptyHeight: 5 },
-      upperTankB: { height: 75, waterFullHeight: 70, waterEmptyHeight: 5 },
-      lowerTankA: { height: 75, waterFullHeight: 70, waterEmptyHeight: 5 },
-      lowerTankB: { height: 75, waterFullHeight: 70, waterEmptyHeight: 5 }
+      upperTankA: { height: 75, waterFullHeight: 5, waterEmptyHeight: 70 },    // Distance when full/empty
+      upperTankB: { height: 75, waterFullHeight: 5, waterEmptyHeight: 70 },    // Distance when full/empty
+      lowerTankA: { height: 75, waterFullHeight: 5, waterEmptyHeight: 70 },    // Distance when full/empty
+      lowerTankB: { height: 75, waterFullHeight: 5, waterEmptyHeight: 70 }     // Distance when full/empty
+    },
+    sensorCalibration: {
+      upperTankA: 0,    // Offset for upper sensor A (cm)
+      lowerTankA: 0,    // Offset for lower sensor A (cm)
+      upperTankB: 0,    // Offset for upper sensor B (cm)
+      lowerTankB: 0     // Offset for lower sensor B (cm)
+    },
+    sensorLimits: {
+      minReading: 20,   // Minimum valid sensor reading (mm)
+      maxReading: 4000  // Maximum valid sensor reading (mm)
     }
   },
   tankData: {

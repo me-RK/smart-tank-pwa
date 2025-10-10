@@ -118,24 +118,34 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               tankDimensions: {
                 upperTankA: {
                   height: message.upperTankHeightA || 75,
-                  waterFullHeight: message.upperWaterFullHeightA || 70,
-                  waterEmptyHeight: message.upperWaterEmptyHeightA || 5
+                  waterFullHeight: message.upperWaterFullHeightA || 5,    // Distance when full
+                  waterEmptyHeight: message.upperWaterEmptyHeightA || 70  // Distance when empty
                 },
                 upperTankB: {
                   height: message.upperTankHeightB || 75,
-                  waterFullHeight: message.upperWaterFullHeightB || 70,
-                  waterEmptyHeight: message.upperWaterEmptyHeightB || 5
+                  waterFullHeight: message.upperWaterFullHeightB || 5,    // Distance when full
+                  waterEmptyHeight: message.upperWaterEmptyHeightB || 70  // Distance when empty
                 },
                 lowerTankA: {
                   height: message.lowerTankHeightA || 75,
-                  waterFullHeight: message.lowerWaterFullHeightA || 70,
-                  waterEmptyHeight: message.lowerWaterEmptyHeightA || 5
+                  waterFullHeight: message.lowerWaterFullHeightA || 5,    // Distance when full
+                  waterEmptyHeight: message.lowerWaterEmptyHeightA || 70  // Distance when empty
                 },
                 lowerTankB: {
                   height: message.lowerTankHeightB || 75,
-                  waterFullHeight: message.lowerWaterFullHeightB || 70,
-                  waterEmptyHeight: message.lowerWaterEmptyHeightB || 5
+                  waterFullHeight: message.lowerWaterFullHeightB || 5,    // Distance when full
+                  waterEmptyHeight: message.lowerWaterEmptyHeightB || 70  // Distance when empty
                 }
+              },
+              sensorCalibration: {
+                upperTankA: message.upperSensorOffsetA || 0,
+                lowerTankA: message.lowerSensorOffsetA || 0,
+                upperTankB: message.upperSensorOffsetB || 0,
+                lowerTankB: message.lowerSensorOffsetB || 0
+              },
+              sensorLimits: {
+                minReading: message.minSensorReading || 20,
+                maxReading: message.maxSensorReading || 4000
               },
               macAddress: message.macAddress || prevState.systemSettings.macAddress
             };

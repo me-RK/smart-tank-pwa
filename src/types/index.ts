@@ -7,8 +7,20 @@ export interface TankLevel {
 
 export interface TankDimensions {
   height: number;
-  waterFullHeight: number;
-  waterEmptyHeight: number;
+  waterFullHeight: number;    // Distance from sensor when tank is full (cm)
+  waterEmptyHeight: number;   // Distance from sensor when tank is empty (cm)
+}
+
+export interface SensorCalibration {
+  upperTankA: number;         // Offset for upper sensor A (cm)
+  lowerTankA: number;         // Offset for lower sensor A (cm)
+  upperTankB: number;         // Offset for upper sensor B (cm)
+  lowerTankB: number;         // Offset for lower sensor B (cm)
+}
+
+export interface SensorLimits {
+  minReading: number;         // Minimum valid sensor reading (mm)
+  maxReading: number;         // Maximum valid sensor reading (mm)
 }
 
 export interface TankData {
@@ -66,6 +78,8 @@ export interface SystemSettings {
     lowerTankA: TankDimensions;
     lowerTankB: TankDimensions;
   };
+  sensorCalibration: SensorCalibration;
+  sensorLimits: SensorLimits;
   macAddress?: number[];
 }
 
@@ -131,6 +145,12 @@ export interface WebSocketMessage {
   lowerTankHeightB?: number;
   lowerWaterFullHeightB?: number;
   lowerWaterEmptyHeightB?: number;
+  upperSensorOffsetA?: number;
+  lowerSensorOffsetA?: number;
+  upperSensorOffsetB?: number;
+  lowerSensorOffsetB?: number;
+  minSensorReading?: number;
+  maxSensorReading?: number;
   upperTankOverFlowLock?: boolean;
   lowerTankOverFlowLock?: boolean;
   syncBothTank?: boolean;
