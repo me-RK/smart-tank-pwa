@@ -1,4 +1,4 @@
-// Core data types for the Smart Water Tank PWA - Enhanced with old firmware compatibility
+// Type definitions for the Smart Water Tank web app
 
 export interface TankLevel {
   upper: number;
@@ -14,14 +14,33 @@ export interface TankDimensions {
 export interface TankData {
   tankA: TankLevel;
   tankB: TankLevel;
-  dimensions: {
-    upper: TankDimensions;
-    lower: TankDimensions;
-  };
+}
+
+export type MotorConfiguration = 'SINGLE_TANK_SINGLE_MOTOR' | 'SINGLE_TANK_DUAL_MOTOR' | 'DUAL_TANK_DUAL_MOTOR';
+
+export type DualMotorSyncMode = 'SIMULTANEOUS' | 'ALTERNATE' | 'PRIMARY_BACKUP';
+
+export interface MotorSettings {
+  configuration: MotorConfiguration;
+  motor1Enabled: boolean;
+  motor2Enabled: boolean;
+  dualMotorSyncMode: DualMotorSyncMode;
+  motorAlternateInterval: number;
+}
+
+export interface TankAutomationSettings {
+  minAutoValue: number;
+  maxAutoValue: number;
+  lowerThreshold: number;
+  lowerOverflow: number;
+  automationEnabled: boolean;
 }
 
 export interface SystemSettings {
   mode: 'Auto Mode' | 'Manual Mode';
+  motorSettings: MotorSettings;
+  tankAAutomation: TankAutomationSettings;
+  tankBAutomation: TankAutomationSettings;
   autoMode: {
     minWaterLevel: number;
     maxWaterLevel: number;
@@ -54,17 +73,132 @@ export interface SystemStatus {
   connected: boolean;
   lastUpdated: string;
   runtime: number;
-  motorStatus: boolean | 'ON' | 'OFF';
+  motor1Status: 'ON' | 'OFF';
+  motor2Status: 'ON' | 'OFF';
+  motor1Enabled: boolean;
+  motor2Enabled: boolean;
+  motorStatus: 'ON' | 'OFF'; // Legacy compatibility
   mode: 'Auto Mode' | 'Manual Mode';
-  autoModeReasons: string;
+  autoModeReasonMotor1: string;
+  autoModeReasonMotor2: string;
+  autoModeReasons: string; // Legacy compatibility
+  motorConfig: MotorConfiguration;
 }
 
-// Enhanced WebSocket message types to match old firmware protocol
+// Enhanced WebSocket message types for v3.0 firmware protocol
 export interface WebSocketMessage {
-  // Home data request/response
-  type?: 'homeData' | 'settingsData' | 'motorControl' | 'systemReset' | 'wifiConfig' | 'pump1Control' | 'pump2Control' | 'systemControl' | 'updateSettings';
+  // Message types for v3.0 (including legacy support)
+  type?: 'homeData' | 'settingData' | 'sensorData' | 'wifiConfig' | 'motorState' | 'configUpdate' | 'wifiConfigUpdate' | 'systemReset' | 'motor1On' | 'motor1Off' | 'motor2On' | 'motor2Off' | 'getHomeData' | 'getSettingData' | 'getSensorData' | 'getWiFiConfig' | 'updateSettings' | 'wifiConfig' | 'motorControl' | 'settingsData';
   
-  // Home data fields (matching old firmware)
+  // v3.0 Home Data Response Fields
+  lastUpdate?: string;
+  systemMode?: string;
+  motor1State?: 'ON' | 'OFF';
+  motor2State?: 'ON' | 'OFF';
+  motor1Enabled?: boolean;
+  motor2Enabled?: boolean;
+  upperTankA?: number;
+  lowerTankA?: number;
+  upperTankB?: number;
+  lowerTankB?: number;
+  lowerSensorAEnabled?: boolean;
+  lowerSensorBEnabled?: boolean;
+  upperSensorAEnabled?: boolean;
+  upperSensorBEnabled?: boolean;
+  autoReasonMotor1?: string;
+  autoReasonMotor2?: string;
+  motorConfig?: MotorConfiguration;
+  
+  // v3.0 Settings Data Response Fields
+  dualMotorSyncMode?: DualMotorSyncMode;
+  minAutoValueA?: number;
+  maxAutoValueA?: number;
+  lowerThresholdA?: number;
+  lowerOverflowA?: number;
+  minAutoValueB?: number;
+  maxAutoValueB?: number;
+  lowerThresholdB?: number;
+  lowerOverflowB?: number;
+  upperTankHeightA?: number;
+  upperWaterFullHeightA?: number;
+  upperWaterEmptyHeightA?: number;
+  lowerTankHeightA?: number;
+  lowerWaterFullHeightA?: number;
+  lowerWaterEmptyHeightA?: number;
+  upperTankHeightB?: number;
+  upperWaterFullHeightB?: number;
+  upperWaterEmptyHeightB?: number;
+  lowerTankHeightB?: number;
+  lowerWaterFullHeightB?: number;
+  lowerWaterEmptyHeightB?: number;
+  upperTankOverFlowLock?: boolean;
+  lowerTankOverFlowLock?: boolean;
+  syncBothTank?: boolean;
+  buzzerAlert?: boolean;
+  tankAAutomationEnabled?: boolean;
+  tankBAutomationEnabled?: boolean;
+  macAddress?: number[];
+  
+  // v3.0 Sensor Data Response Fields
+  sensorUpperA?: number;
+  sensorUpperB?: number;
+  sensorLowerA?: number;
+  sensorLowerB?: number;
+  upperTankAPercent?: number;
+  upperTankBPercent?: number;
+  lowerTankAPercent?: number;
+  lowerTankBPercent?: number;
+  wifiRSSI?: number;
+  
+  // v3.0 WiFi Configuration Fields
+  wifiMode?: 'AP' | 'STA';
+  ssid?: string;
+  password?: string;
+  staticIP?: string;
+  gateway?: string;
+  subnet?: string;
+  primaryDNS?: string;
+  currentIP?: string;
+  
+  // v3.0 Motor State Update Fields
+  motor?: 1 | 2;
+  state?: 'ON' | 'OFF';
+  
+  // v3.0 Configuration Update Fields (for sending to ESP32)
+  upperSensorAEnable?: boolean;
+  upperSensorBEnable?: boolean;
+  lowerSensorAEnable?: boolean;
+  lowerSensorBEnable?: boolean;
+  
+  // v3.0 WiFi Configuration Update Fields (for sending to ESP32)
+  MODE?: 'AP' | 'STA';
+  SSID?: string;
+  PASS?: string;
+  SIP0?: number;
+  SIP1?: number;
+  SIP2?: number;
+  SIP3?: number;
+  SG0?: number;
+  SG1?: number;
+  SG2?: number;
+  SG3?: number;
+  SS0?: number;
+  SS1?: number;
+  SS2?: number;
+  SS3?: number;
+  SPD0?: number;
+  SPD1?: number;
+  SPD2?: number;
+  SPD3?: number;
+  
+  // Response status fields
+  status?: string;
+  message?: string;
+  
+  // Settings payload for updateSettings command
+  settings?: SystemSettings;
+  
+  // Legacy fields for backward compatibility with old firmware
   RTV?: string; // Runtime value
   SM?: string; // System mode
   MSV?: boolean | string; // Motor state value
@@ -77,8 +211,6 @@ export interface WebSocketMessage {
   UAE?: boolean; // Upper sensor A enable
   UBE?: boolean; // Upper sensor B enable
   AMR?: string; // Auto mode reason
-  
-  // Settings data fields
   UTHA?: number; // Upper tank height A
   UTWFHA?: number; // Upper tank water full height A
   UTWEHA?: number; // Upper tank water empty height A
@@ -99,21 +231,10 @@ export interface WebSocketMessage {
   BA?: boolean; // Buzzer alert
   BMAC?: number[]; // Board MAC address
   
-  // WiFi configuration fields
-  MODE?: 'access_point' | 'station';
-  SSID?: string;
-  PASS?: string;
-  SIP?: number[]; // Static IP
-  GW?: number[]; // Gateway
-  SNM?: number[]; // Subnet mask
-  PDNS?: number[]; // Primary DNS
-  SDNS?: number[]; // Secondary DNS
-  
   // Legacy fields for backward compatibility
   data?: SystemStatus | SystemSettings | TankData | string;
   timestamp?: string;
   motorOn?: boolean;
-  settings?: SystemSettings;
 }
 
 export interface AppState {

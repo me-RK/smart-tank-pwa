@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWebSocket } from '../context/useWebSocket';
 import { StatusCard } from '../components/StatusCard';
@@ -11,13 +11,27 @@ export const Dashboard: React.FC = () => {
   const { appState, sendMessage, connect, disconnect, isConnected } = useWebSocket();
   const [showConnectionModal, setShowConnectionModal] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // Auto-sync functionality
+  const [syncInterval, setSyncInterval] = useState<number>(() => {
+    const saved = localStorage.getItem('dashboardSyncInterval');
+    return saved ? parseInt(saved, 10) : 5000; // Default 5 seconds
+  });
+  const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleSyncData = async () => {
+    if (!isConnected) return;
+    
     setIsRefreshing(true);
     
-    // Send sync request to server using old firmware protocol
+    // Send sync request to server using v3.0 protocol
     sendMessage({
-      type: 'homeData'
+      type: 'getHomeData'
+    });
+    
+    // Also request settings data to ensure motor configuration is up to date
+    sendMessage({
+      type: 'getSettingData'
     });
 
     // Simulate refresh delay
@@ -26,14 +40,75 @@ export const Dashboard: React.FC = () => {
     }, 1000);
   };
 
+  // Auto-sync functionality
+  const startAutoSync = () => {
+    if (syncIntervalRef.current) {
+      clearInterval(syncIntervalRef.current);
+    }
+    
+    if (isConnected && syncInterval > 0) {
+      syncIntervalRef.current = setInterval(() => {
+        handleSyncData();
+      }, syncInterval);
+    }
+  };
 
-  const handleMotorToggle = () => {
-    const currentMotorState = appState.systemStatus.motorStatus;
+  const stopAutoSync = () => {
+    if (syncIntervalRef.current) {
+      clearInterval(syncIntervalRef.current);
+      syncIntervalRef.current = null;
+    }
+  };
+
+  const updateSyncInterval = (newInterval: number) => {
+    setSyncInterval(newInterval);
+    localStorage.setItem('dashboardSyncInterval', newInterval.toString());
+    
+    // Restart auto-sync with new interval
+    if (isConnected) {
+      startAutoSync();
+    }
+  };
+
+  // Effect to manage auto-sync based on connection status
+  useEffect(() => {
+    if (isConnected) {
+      startAutoSync();
+    } else {
+      stopAutoSync();
+    }
+
+    // Cleanup on unmount
+    return () => {
+      stopAutoSync();
+    };
+  }, [isConnected, syncInterval]);
+
+  // Listen for sync interval changes from Settings page
+  useEffect(() => {
+    const handleSyncIntervalChange = (event: CustomEvent) => {
+      const newInterval = event.detail.interval;
+      updateSyncInterval(newInterval);
+    };
+
+    window.addEventListener('syncIntervalChanged', handleSyncIntervalChange as EventListener);
+    
+    return () => {
+      window.removeEventListener('syncIntervalChanged', handleSyncIntervalChange as EventListener);
+    };
+  }, []);
+
+
+  const handleMotorToggle = (motorNumber: 1 | 2) => {
+    const currentMotorState = motorNumber === 1 ? appState.systemStatus.motor1Status : appState.systemStatus.motor2Status;
+    const isMotorCurrentlyOn = currentMotorState === 'ON';
+    const newMotorState = !isMotorCurrentlyOn;
+    
     sendMessage({
-      type: 'motorControl',
-      motorOn: currentMotorState === 'OFF'
+      type: newMotorState ? `motor${motorNumber}On` : `motor${motorNumber}Off`
     });
   };
+
 
 
   const handleConnect = () => {
@@ -116,17 +191,100 @@ export const Dashboard: React.FC = () => {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
         {/* Status Card */}
         <div className="mb-8">
           <StatusCard
             connected={appState.systemStatus.connected}
             lastUpdated={appState.systemStatus.lastUpdated}
             runtime={appState.systemStatus.runtime}
-            motorStatus={appState.systemStatus.motorStatus === true || appState.systemStatus.motorStatus === 'ON' ? 'ON' : 'OFF'}
+            motorStatus={appState.systemStatus.motorStatus === 'ON' ? 'ON' : 'OFF'}
+            motor1Status={appState.systemStatus.motor1Status}
+            motor2Status={appState.systemStatus.motor2Status}
+            motor1Enabled={appState.systemStatus.motor1Enabled}
+            motor2Enabled={appState.systemStatus.motor2Enabled}
+            motorConfig={appState.systemStatus.motorConfig}
             mode={appState.systemStatus.mode === 'Auto Mode' ? 'auto' : 'manual'}
             autoModeReasons={appState.systemStatus.autoModeReasons ? [appState.systemStatus.autoModeReasons] : []}
-            onSyncData={handleSyncData}
+            autoModeReasonMotor1={appState.systemStatus.autoModeReasonMotor1}
+            autoModeReasonMotor2={appState.systemStatus.autoModeReasonMotor2}
           />
+        </div>
+
+        {/* Tank Monitoring */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
+              Tank Monitoring
+            </h2>
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <label className="text-sm text-gray-600 dark:text-gray-400">
+                  Auto-sync:
+                </label>
+                <select
+                  value={syncInterval}
+                  onChange={(e) => updateSyncInterval(parseInt(e.target.value, 10))}
+                  className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                >
+                  <option value={0}>Off</option>
+                  <option value={2000}>2s</option>
+                  <option value={5000}>5s</option>
+                  <option value={10000}>10s</option>
+                  <option value={30000}>30s</option>
+                  <option value={60000}>1m</option>
+                </select>
+              </div>
+              <button
+                onClick={handleSyncData}
+                disabled={!isConnected || isRefreshing}
+                className={`
+                  px-3 py-1 rounded-md text-sm font-medium transition-colors flex items-center space-x-1
+                  ${isConnected && !isRefreshing
+                    ? 'bg-blue-500 hover:bg-blue-600 text-white'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  }
+                `}
+              >
+                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                <span>Sync Now</span>
+              </button>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Tank A - Show only if sensors are enabled */}
+            {(appState.systemSettings.sensors.upperTankA || appState.systemSettings.sensors.lowerTankA) && (
+              <TankLevelCard
+                tankName="Tank A"
+                upperLevel={appState.tankData.tankA.upper}
+                lowerLevel={appState.tankData.tankA.lower}
+                isActive={appState.systemSettings.sensors.upperTankA || appState.systemSettings.sensors.lowerTankA}
+              />
+            )}
+            
+            {/* Tank B - Show only if sensors are enabled */}
+            {(appState.systemSettings.sensors.upperTankB || appState.systemSettings.sensors.lowerTankB) && (
+              <TankLevelCard
+                tankName="Tank B"
+                upperLevel={appState.tankData.tankB.upper}
+                lowerLevel={appState.tankData.tankB.lower}
+                isActive={appState.systemSettings.sensors.upperTankB || appState.systemSettings.sensors.lowerTankB}
+              />
+            )}
+            
+            {/* Show message if no tanks are enabled */}
+            {!(appState.systemSettings.sensors.upperTankA || appState.systemSettings.sensors.lowerTankA || 
+               appState.systemSettings.sensors.upperTankB || appState.systemSettings.sensors.lowerTankB) && (
+              <div className="col-span-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 text-center">
+                <div className="text-gray-500 dark:text-gray-400">
+                  <p className="text-sm font-medium mb-2">No Tank Sensors Enabled</p>
+                  <p className="text-xs">
+                    Enable tank sensors in Settings to monitor tank levels
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Auto Mode Reason Display */}
@@ -141,21 +299,6 @@ export const Dashboard: React.FC = () => {
           </div>
         )}
 
-        {/* Tank Levels */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <TankLevelCard
-            tankName="Tank A"
-            upperLevel={appState.tankData.tankA.upper}
-            lowerLevel={appState.tankData.tankA.lower}
-            isActive={appState.systemSettings.sensors.upperTankA || appState.systemSettings.sensors.lowerTankA}
-          />
-          <TankLevelCard
-            tankName="Tank B"
-            upperLevel={appState.tankData.tankB.upper}
-            lowerLevel={appState.tankData.tankB.lower}
-            isActive={appState.systemSettings.sensors.upperTankB || appState.systemSettings.sensors.lowerTankB}
-          />
-        </div>
 
         {/* Motor Control */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
@@ -163,36 +306,88 @@ export const Dashboard: React.FC = () => {
             Motor Control
           </h3>
           
+          {/* Motor Configuration Info */}
+          <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
+              Motor Configuration: {appState.systemStatus.motorConfig}
+            </h4>
+            <div className="text-xs text-blue-700 dark:text-blue-300 space-y-1">
+              <div>Motor 1: {appState.systemStatus.motor1Enabled ? 'Enabled' : 'Disabled'} - Status: {appState.systemStatus.motor1Status}</div>
+              <div>Motor 2: {appState.systemStatus.motor2Enabled ? 'Enabled' : 'Disabled'} - Status: {appState.systemStatus.motor2Status}</div>
+            </div>
+          </div>
+
           {/* Manual Mode Motor Control */}
           {appState.systemStatus.mode === 'Manual Mode' && (
             <div className="mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Manual Motor Control
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-500">
-                    {appState.systemStatus.motorStatus === 'ON' ? 'Motor is currently ON' : 'Motor is currently OFF'}
-                  </p>
+              <h4 className="text-md font-medium text-gray-700 dark:text-gray-300 mb-4">
+                Manual Motor Control
+              </h4>
+              
+              {/* Motor 1 Control */}
+              {appState.systemStatus.motor1Enabled && (
+                <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Motor 1 Control
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-500">
+                        Status: {appState.systemStatus.motor1Status}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleMotorToggle(1)}
+                      className={`
+                        px-4 py-2 rounded-lg font-medium transition-colors text-sm
+                        ${appState.systemStatus.connected 
+                          ? (appState.systemStatus.motor1Status === 'ON' 
+                              ? 'bg-red-500 hover:bg-red-600 text-white' 
+                              : 'bg-green-500 hover:bg-green-600 text-white')
+                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        }
+                      `}
+                      disabled={!appState.systemStatus.connected}
+                    >
+                      {appState.systemStatus.motor1Status === 'ON' ? 'Turn OFF Motor 1' : 'Turn ON Motor 1'}
+                    </button>
+                  </div>
                 </div>
-                <button
-                  onClick={handleMotorToggle}
-                  className={`
-                    px-6 py-3 rounded-lg font-medium transition-colors text-lg
-                    ${appState.systemStatus.connected 
-                      ? (appState.systemStatus.motorStatus === 'ON' 
-                          ? 'bg-red-500 hover:bg-red-600 text-white' 
-                          : 'bg-green-500 hover:bg-green-600 text-white')
-                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    }
-                  `}
-                  disabled={!appState.systemStatus.connected}
-                >
-                  {appState.systemStatus.motorStatus === 'ON' ? 'Turn OFF Motor' : 'Turn ON Motor'}
-                </button>
-              </div>
+              )}
+
+              {/* Motor 2 Control */}
+              {appState.systemStatus.motor2Enabled && (
+                <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Motor 2 Control
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-500">
+                        Status: {appState.systemStatus.motor2Status}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleMotorToggle(2)}
+                      className={`
+                        px-4 py-2 rounded-lg font-medium transition-colors text-sm
+                        ${appState.systemStatus.connected 
+                          ? (appState.systemStatus.motor2Status === 'ON' 
+                              ? 'bg-red-500 hover:bg-red-600 text-white' 
+                              : 'bg-green-500 hover:bg-green-600 text-white')
+                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        }
+                      `}
+                      disabled={!appState.systemStatus.connected}
+                    >
+                      {appState.systemStatus.motor2Status === 'ON' ? 'Turn OFF Motor 2' : 'Turn ON Motor 2'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
+
 
           {/* Auto Mode Information */}
           {appState.systemStatus.mode === 'Auto Mode' && (
@@ -204,9 +399,31 @@ export const Dashboard: React.FC = () => {
                     Auto Mode Active
                   </span>
                 </div>
+                <p className="text-xs text-blue-600 dark:text-blue-400 mb-3">
+                  Motors are automatically controlled based on tank levels and system settings.
+                </p>
+                
+                {/* Motor 1 Automation Reason */}
+                {appState.systemStatus.motor1Enabled && (
+                  <div className="mb-2">
+                    <p className="text-xs text-blue-600 dark:text-blue-400">
+                      <strong>Motor 1:</strong> {appState.systemStatus.motor1Status} - {appState.systemStatus.autoModeReasonMotor1}
+                    </p>
+                  </div>
+                )}
+                
+                {/* Motor 2 Automation Reason */}
+                {appState.systemStatus.motor2Enabled && (
+                  <div className="mb-2">
+                    <p className="text-xs text-blue-600 dark:text-blue-400">
+                      <strong>Motor 2:</strong> {appState.systemStatus.motor2Status} - {appState.systemStatus.autoModeReasonMotor2}
+                    </p>
+                  </div>
+                )}
+                
+                {/* Legacy Motor Status */}
                 <p className="text-xs text-blue-600 dark:text-blue-400">
-                  Motor is automatically controlled based on tank levels and system settings.
-                  Current status: <strong>{appState.systemStatus.motorStatus}</strong>
+                  <strong>Overall Status:</strong> {appState.systemStatus.motorStatus}
                 </p>
               </div>
             </div>
@@ -270,6 +487,7 @@ export const Dashboard: React.FC = () => {
             </div>
           </div>
         </div>
+
 
         {/* Connection Status */}
         {!isConnected && (

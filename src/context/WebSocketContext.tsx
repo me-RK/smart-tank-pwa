@@ -14,156 +14,255 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const reconnectDelay = 2000;
   const reconnectBackoff = 1.5;
 
-  // Parse incoming WebSocket messages - Enhanced for old firmware compatibility
+  // Parse incoming WebSocket messages - Enhanced for v3.0 firmware protocol
   const handleMessage = useCallback((event: MessageEvent) => {
     try {
       const message = JSON.parse(event.data);
-      console.log('Received message from ESP32:', message);
       
       setAppState((prevState: AppState) => {
         const newState = { ...prevState };
         
-        // Handle home data response (matching old firmware protocol)
-        if (message.RTV !== undefined || message.SM !== undefined || message.MSV !== undefined) {
-          // This is home data from the old firmware
+        // Handle v3.0 message types
+        switch (message.type) {
+          case 'homeData':
+            // v3.0 Home data response
+            newState.systemStatus = {
+              ...prevState.systemStatus,
+              connected: true,
+              runtime: parseFloat(message.lastUpdate || '0'),
+              mode: (message.systemMode as 'Auto Mode' | 'Manual Mode') || prevState.systemStatus.mode,
+              motor1Status: message.motor1State || 'OFF',
+              motor2Status: message.motor2State || 'OFF',
+              motor1Enabled: message.motor1Enabled !== undefined ? message.motor1Enabled : prevState.systemStatus.motor1Enabled,
+              motor2Enabled: message.motor2Enabled !== undefined ? message.motor2Enabled : prevState.systemStatus.motor2Enabled,
+              motorStatus: message.motor1State === 'ON' || message.motor2State === 'ON' ? 'ON' : 'OFF', // Legacy compatibility
+              autoModeReasonMotor1: message.autoReasonMotor1 || 'NONE',
+              autoModeReasonMotor2: message.autoReasonMotor2 || 'NONE',
+              autoModeReasons: message.autoReasonMotor1 || 'NONE', // Legacy compatibility
+              motorConfig: message.motorConfig || 'SINGLE_TANK_SINGLE_MOTOR',
+              lastUpdated: new Date().toISOString()
+            };
+            
+            // Update tank data
+            newState.tankData = {
+              ...prevState.tankData,
+              tankA: {
+                upper: message.upperTankA !== undefined ? message.upperTankA : prevState.tankData.tankA.upper,
+                lower: message.lowerTankA !== undefined ? message.lowerTankA : prevState.tankData.tankA.lower
+              },
+              tankB: {
+                upper: message.upperTankB !== undefined ? message.upperTankB : prevState.tankData.tankB.upper,
+                lower: message.lowerTankB !== undefined ? message.lowerTankB : prevState.tankData.tankB.lower
+              }
+            };
+            
+            // Update sensor enable states
+            newState.systemSettings = {
+              ...prevState.systemSettings,
+              sensors: {
+                lowerTankA: message.lowerSensorAEnabled !== undefined ? message.lowerSensorAEnabled : prevState.systemSettings.sensors.lowerTankA,
+                lowerTankB: message.lowerSensorBEnabled !== undefined ? message.lowerSensorBEnabled : prevState.systemSettings.sensors.lowerTankB,
+                upperTankA: message.upperSensorAEnabled !== undefined ? message.upperSensorAEnabled : prevState.systemSettings.sensors.upperTankA,
+                upperTankB: message.upperSensorBEnabled !== undefined ? message.upperSensorBEnabled : prevState.systemSettings.sensors.upperTankB
+              }
+            };
+            
+            newState.isConnected = true;
+            newState.error = null;
+            setReconnectAttempts(0);
+            break;
+            
+          case 'settingData':
+            // v3.0 Settings data response
+            const mode = message.systemMode || 'Manual Mode';
+            
+            newState.systemSettings = {
+              ...prevState.systemSettings,
+              mode: mode as 'Auto Mode' | 'Manual Mode',
+              motorSettings: {
+                configuration: message.motorConfig || 'SINGLE_TANK_SINGLE_MOTOR',
+                motor1Enabled: message.motor1Enabled !== undefined ? message.motor1Enabled : prevState.systemSettings.motorSettings.motor1Enabled,
+                motor2Enabled: message.motor2Enabled !== undefined ? message.motor2Enabled : prevState.systemSettings.motorSettings.motor2Enabled,
+                dualMotorSyncMode: message.dualMotorSyncMode || 'SIMULTANEOUS',
+                motorAlternateInterval: 3600000 // Default 1 hour
+              },
+              tankAAutomation: {
+                minAutoValue: message.minAutoValueA || 50,
+                maxAutoValue: message.maxAutoValueA || 90,
+                lowerThreshold: message.lowerThresholdA || 30,
+                lowerOverflow: message.lowerOverflowA || 95,
+                automationEnabled: message.tankAAutomationEnabled !== undefined ? message.tankAAutomationEnabled : prevState.systemSettings.tankAAutomation.automationEnabled
+              },
+              tankBAutomation: {
+                minAutoValue: message.minAutoValueB || 50,
+                maxAutoValue: message.maxAutoValueB || 90,
+                lowerThreshold: message.lowerThresholdB || 30,
+                lowerOverflow: message.lowerOverflowB || 95,
+                automationEnabled: message.tankBAutomationEnabled !== undefined ? message.tankBAutomationEnabled : prevState.systemSettings.tankBAutomation.automationEnabled
+              },
+              // Legacy auto mode settings (for backward compatibility)
+              autoMode: {
+                minWaterLevel: message.minAutoValueA || 50,
+                maxWaterLevel: message.maxAutoValueA || 90,
+                specialFunctions: {
+                  upperTankOverFlowLock: message.upperTankOverFlowLock !== undefined ? message.upperTankOverFlowLock : prevState.systemSettings.autoMode.specialFunctions.upperTankOverFlowLock,
+                  lowerTankOverFlowLock: message.lowerTankOverFlowLock !== undefined ? message.lowerTankOverFlowLock : prevState.systemSettings.autoMode.specialFunctions.lowerTankOverFlowLock,
+                  syncBothTank: message.syncBothTank !== undefined ? message.syncBothTank : prevState.systemSettings.autoMode.specialFunctions.syncBothTank,
+                  buzzerAlert: message.buzzerAlert !== undefined ? message.buzzerAlert : prevState.systemSettings.autoMode.specialFunctions.buzzerAlert
+                }
+              },
+              sensors: {
+                lowerTankA: message.lowerSensorAEnabled !== undefined ? message.lowerSensorAEnabled : prevState.systemSettings.sensors.lowerTankA,
+                lowerTankB: message.lowerSensorBEnabled !== undefined ? message.lowerSensorBEnabled : prevState.systemSettings.sensors.lowerTankB,
+                upperTankA: message.upperSensorAEnabled !== undefined ? message.upperSensorAEnabled : prevState.systemSettings.sensors.upperTankA,
+                upperTankB: message.upperSensorBEnabled !== undefined ? message.upperSensorBEnabled : prevState.systemSettings.sensors.upperTankB
+              },
+              tankDimensions: {
+                upperTankA: {
+                  height: message.upperTankHeightA || 75,
+                  waterFullHeight: message.upperWaterFullHeightA || 70,
+                  waterEmptyHeight: message.upperWaterEmptyHeightA || 5
+                },
+                upperTankB: {
+                  height: message.upperTankHeightB || 75,
+                  waterFullHeight: message.upperWaterFullHeightB || 70,
+                  waterEmptyHeight: message.upperWaterEmptyHeightB || 5
+                },
+                lowerTankA: {
+                  height: message.lowerTankHeightA || 75,
+                  waterFullHeight: message.lowerWaterFullHeightA || 70,
+                  waterEmptyHeight: message.lowerWaterEmptyHeightA || 5
+                },
+                lowerTankB: {
+                  height: message.lowerTankHeightB || 75,
+                  waterFullHeight: message.lowerWaterFullHeightB || 70,
+                  waterEmptyHeight: message.lowerWaterEmptyHeightB || 5
+                }
+              },
+              macAddress: message.macAddress || prevState.systemSettings.macAddress
+            };
+            
+            // Update system status mode to match settings
+            newState.systemStatus = {
+              ...prevState.systemStatus,
+              mode: mode as 'Auto Mode' | 'Manual Mode',
+              connected: true,
+              motorConfig: message.motorConfig || 'SINGLE_TANK_SINGLE_MOTOR',
+              motor1Enabled: message.motor1Enabled !== undefined ? message.motor1Enabled : prevState.systemStatus.motor1Enabled,
+              motor2Enabled: message.motor2Enabled !== undefined ? message.motor2Enabled : prevState.systemStatus.motor2Enabled
+            };
+            
+            newState.isConnected = true;
+            newState.error = null;
+            setReconnectAttempts(0);
+            break;
+            
+          case 'motorState':
+            // v3.0 Motor state update
+            if (message.motor === 1) {
+              newState.systemStatus = {
+                ...prevState.systemStatus,
+                motor1Status: message.state || 'OFF',
+                motorStatus: message.state === 'ON' ? 'ON' : (newState.systemStatus.motor2Status === 'ON' ? 'ON' : 'OFF'), // Legacy compatibility
+                lastUpdated: new Date().toISOString()
+              };
+            } else if (message.motor === 2) {
+              newState.systemStatus = {
+                ...prevState.systemStatus,
+                motor2Status: message.state || 'OFF',
+                motorStatus: message.state === 'ON' ? 'ON' : (newState.systemStatus.motor1Status === 'ON' ? 'ON' : 'OFF'), // Legacy compatibility
+                lastUpdated: new Date().toISOString()
+              };
+            }
+            newState.isConnected = true;
+            setReconnectAttempts(0);
+            break;
+            
+          case 'sensorData':
+            // v3.0 Sensor data response
+            newState.tankData = {
+              ...prevState.tankData,
+              tankA: {
+                upper: message.upperTankAPercent !== undefined ? message.upperTankAPercent : prevState.tankData.tankA.upper,
+                lower: message.lowerTankAPercent !== undefined ? message.lowerTankAPercent : prevState.tankData.tankA.lower
+              },
+              tankB: {
+                upper: message.upperTankBPercent !== undefined ? message.upperTankBPercent : prevState.tankData.tankB.upper,
+                lower: message.lowerTankBPercent !== undefined ? message.lowerTankBPercent : prevState.tankData.tankB.lower
+              }
+            };
+            newState.isConnected = true;
+            newState.error = null;
+            setReconnectAttempts(0);
+            break;
+            
+          case 'configUpdate':
+          case 'wifiConfigUpdate':
+            // Configuration update acknowledgment
+            newState.isConnected = true;
+            newState.error = null;
+            setReconnectAttempts(0);
+            break;
+            
+          case 'systemReset':
+            // System reset acknowledgment
+            newState.isConnected = false;
+            break;
+            
+          default:
+            // Handle legacy message types for backward compatibility
+        if (message.MSV !== undefined && message.RTV === undefined && message.SM === undefined) {
+              // Legacy motor status acknowledgment
+          newState.systemStatus = {
+            ...prevState.systemStatus,
+            motorStatus: message.MSV === 'ON' || message.MSV === true ? 'ON' : 'OFF',
+            lastUpdated: new Date().toISOString()
+          };
+          newState.isConnected = true;
+          setReconnectAttempts(0);
+            } else if (message.RTV !== undefined || message.SM !== undefined || message.MSV !== undefined) {
+              // Legacy home data response
           newState.systemStatus = {
             ...prevState.systemStatus,
             connected: true,
             runtime: parseFloat(message.RTV || '0'),
-            mode: message.SM || 'Manual Mode',
+            mode: message.SM || prevState.systemStatus.mode,
             motorStatus: message.MSV === 'ON' || message.MSV === true ? 'ON' : 'OFF',
             autoModeReasons: message.AMR || 'NONE',
             lastUpdated: new Date().toISOString()
           };
           
-          // Update tank data
-          newState.tankData = {
-            ...prevState.tankData,
-            tankA: {
-              upper: message.UTWLA || 0,
-              lower: message.LTWLA || 0
-            },
-            tankB: {
-              upper: message.UTWLB || 0,
-              lower: message.LTWLB || 0
-            }
-          };
-          
-          // Update sensor enable states
-          newState.systemSettings = {
-            ...prevState.systemSettings,
-            sensors: {
-              lowerTankA: message.LAE || false,
-              lowerTankB: message.LBE || false,
-              upperTankA: message.UAE || false,
-              upperTankB: message.UBE || false
-            }
-          };
-          
-          newState.isConnected = true;
-          newState.error = null;
-          setReconnectAttempts(0);
-        }
-        // Handle settings data response
-        else if (message.UTHA !== undefined || message.MIAV !== undefined) {
-          // This is settings data from the old firmware
-          newState.systemSettings = {
-            ...prevState.systemSettings,
-            mode: message.SM || 'Manual Mode',
-            autoMode: {
-              minWaterLevel: message.MIAV || 50,
-              maxWaterLevel: message.MAAV || 90,
-              specialFunctions: {
-                upperTankOverFlowLock: message.UTOFL || true,
-                lowerTankOverFlowLock: message.LTOFL || true,
-                syncBothTank: message.SBT || true,
-                buzzerAlert: message.BA || true
+          // Update tank data only if provided
+          if (message.UTWLA !== undefined || message.LTWLA !== undefined) {
+            newState.tankData = {
+              ...prevState.tankData,
+              tankA: {
+                upper: message.UTWLA || prevState.tankData.tankA.upper,
+                lower: message.LTWLA || prevState.tankData.tankA.lower
+              },
+              tankB: {
+                upper: message.UTWLB || prevState.tankData.tankB.upper,
+                lower: message.LTWLB || prevState.tankData.tankB.lower
               }
-            },
-            sensors: {
-              lowerTankA: message.LAE || false,
-              lowerTankB: message.LBE || false,
-              upperTankA: message.UAE || false,
-              upperTankB: message.UBE || false
-            },
-            tankDimensions: {
-              upperTankA: {
-                height: message.UTHA || 75,
-                waterFullHeight: message.UTWFHA || 70,
-                waterEmptyHeight: message.UTWEHA || 0
-              },
-              upperTankB: {
-                height: message.UTHB || 75,
-                waterFullHeight: message.UTWFHB || 70,
-                waterEmptyHeight: message.UTWEHB || 0
-              },
-              lowerTankA: {
-                height: message.LTHA || 75,
-                waterFullHeight: message.LTWFHA || 70,
-                waterEmptyHeight: message.LTWEHA || 0
-              },
-              lowerTankB: {
-                height: message.LTHB || 75,
-                waterFullHeight: message.LTWFHB || 70,
-                waterEmptyHeight: message.LTWEHB || 0
-              }
-            },
-            macAddress: message.BMAC
-          };
+            };
+          }
           
-          newState.isConnected = true;
-          newState.error = null;
-          setReconnectAttempts(0);
-        }
-        // Handle legacy message types for backward compatibility
-        else {
-          switch (message.type) {
-            case 'sensorData':
-              newState.tankData = {
-                ...prevState.tankData,
-                tankA: {
-                  upper: message.sensorA || 0,
-                  lower: message.sensorA || 0
-                },
-                tankB: {
-                  upper: message.sensorB || 0,
-                  lower: message.sensorB || 0
-                }
-              };
               newState.isConnected = true;
               newState.error = null;
               setReconnectAttempts(0);
-              break;
-            case 'status':
-              newState.systemStatus = {
-                ...prevState.systemStatus,
-                connected: true,
-                motorStatus: message.pump1Enabled || message.pump2Enabled ? 'ON' : 'OFF',
-                lastUpdated: new Date().toISOString()
-              };
-              newState.isConnected = true;
-              newState.error = null;
-              setReconnectAttempts(0);
-              break;
-            case 'error':
-              newState.error = message.data || 'Unknown error from ESP32';
-              break;
-            default:
-              console.log('Unknown message type from ESP32:', message.type);
+            } else {
           }
         }
         
         return newState;
       });
     } catch (error) {
-      console.error('Error parsing WebSocket message from ESP32:', error);
       setAppState((prev: AppState) => ({ ...prev, error: 'Failed to parse ESP32 message' }));
     }
   }, []);
 
   // Handle WebSocket connection events
   const handleOpen = useCallback(() => {
-    console.log('✅ WebSocket connected to ESP32 successfully!');
     setAppState((prev: AppState) => ({ 
       ...prev, 
       isConnected: true, 
@@ -179,17 +278,26 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     // Request initial data from ESP32 using old firmware protocol
     setTimeout(() => {
       if (ws && ws.readyState === WebSocket.OPEN) {
-        console.log('📡 Requesting initial data from ESP32...');
         ws.send('getHomeData');
         ws.send('getSettingData');
       } else {
-        console.warn('⚠️ WebSocket not open when trying to request data');
       }
     }, 1000);
+
+    // Set up periodic data refresh (every 2 seconds)
+    const refreshInterval = setInterval(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send('getHomeData');
+      }
+    }, 2000);
+
+    // Clean up interval on disconnect
+    return () => {
+      clearInterval(refreshInterval);
+    };
   }, [reconnectInterval, ws]);
 
-  const handleError = useCallback((error: Event) => {
-    console.error('WebSocket error:', error);
+  const handleError = useCallback(() => {
     setAppState((prev: AppState) => ({ 
       ...prev, 
       error: 'Connection error occurred',
@@ -207,7 +315,6 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     try {
       // Check if already connecting or connected
       if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
-        console.log('WebSocket already connecting or connected. Ignoring new connection request.');
         return;
       }
       
@@ -218,11 +325,9 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const isHttps = window.location.protocol === 'https:';
       const wsUrl = isHttps ? `wss://${host}:81` : `ws://${host}:81`;
       
-      console.log(`Connecting to ${wsUrl} (HTTPS: ${isHttps})`);
       
       // If on HTTPS and trying to connect to local network, show helpful error
       if (isHttps && (host.startsWith('192.168.') || host.startsWith('10.') || host.startsWith('172.'))) {
-        console.warn('⚠️ HTTPS Mixed Content: Cannot connect to local network from HTTPS site');
         setAppState((prev: AppState) => ({ 
           ...prev, 
           error: 'HTTPS Mixed Content: Cannot connect to local network from HTTPS site. Please use HTTP or local development server.',
@@ -231,13 +336,11 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         return;
       }
       
-      console.log(`🔌 Attempting WebSocket connection to ${wsUrl}...`);
       
       const newWs = new WebSocket(wsUrl);
       
       newWs.onopen = handleOpen;
       newWs.onclose = (event: CloseEvent) => {
-        console.log('WebSocket disconnected:', event.code, event.reason);
         setAppState((prev: AppState) => ({ 
           ...prev, 
           isConnected: false,
@@ -298,75 +401,98 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }));
   }, [ws, reconnectInterval]);
 
-  // Send message through WebSocket - Enhanced for old firmware compatibility
+  // Send message through WebSocket - Enhanced for v3.0 firmware protocol
   const sendMessage = useCallback((message: WebSocketMessage) => {
     if (ws && ws.readyState === WebSocket.OPEN) {
       try {
-        // Handle different message types using old firmware protocol
+        // Handle different message types using v3.0 protocol
         switch (message.type) {
+          case 'motor1On':
+            ws.send('motor1On');
+            break;
+          case 'motor1Off':
+            ws.send('motor1Off');
+            break;
+          case 'motor2On':
+            ws.send('motor2On');
+            break;
+          case 'motor2Off':
+            ws.send('motor2Off');
+            break;
           case 'motorControl':
-            // Send motor control command
+            // Legacy motor control - default to motor 1
             if (message.motorOn) {
-              ws.send('motorOn');
+              ws.send('motor1On');
             } else {
-              ws.send('motorOff');
+              ws.send('motor1Off');
             }
             break;
-          case 'pump1Control':
-            // Toggle pump 1 (same as motor control in old firmware)
-            ws.send('motorOn');
-            break;
-          case 'pump2Control':
-            // Toggle pump 2 (same as motor control in old firmware)
-            ws.send('motorOn');
-            break;
-          case 'systemControl':
-            // System control (same as motor control in old firmware)
-            ws.send('motorOn');
-            break;
           case 'updateSettings':
-            // Send settings update as JSON
+            // Send v3.0 settings update as JSON
             if (message.settings) {
               const settingsMessage = {
-                SM: message.settings.mode,
-                MIAV: message.settings.autoMode.minWaterLevel,
-                MAAV: message.settings.autoMode.maxWaterLevel,
-                UTHA: message.settings.tankDimensions.upperTankA.height,
-                UTWFHA: message.settings.tankDimensions.upperTankA.waterFullHeight,
-                UTWEHA: message.settings.tankDimensions.upperTankA.waterEmptyHeight,
-                LTHA: message.settings.tankDimensions.lowerTankA.height,
-                LTWFHA: message.settings.tankDimensions.lowerTankA.waterFullHeight,
-                LTWEHA: message.settings.tankDimensions.lowerTankA.waterEmptyHeight,
-                UTHB: message.settings.tankDimensions.upperTankB.height,
-                UTWFHB: message.settings.tankDimensions.upperTankB.waterFullHeight,
-                UTWEHB: message.settings.tankDimensions.upperTankB.waterEmptyHeight,
-                LTHB: message.settings.tankDimensions.lowerTankB.height,
-                LTWFHB: message.settings.tankDimensions.lowerTankB.waterFullHeight,
-                LTWEHB: message.settings.tankDimensions.lowerTankB.waterEmptyHeight,
-                LAE: message.settings.sensors.lowerTankA,
-                LBE: message.settings.sensors.lowerTankB,
-                UAE: message.settings.sensors.upperTankA,
-                UBE: message.settings.sensors.upperTankB,
-                UTOFL: message.settings.autoMode.specialFunctions.upperTankOverFlowLock,
-                LTOFL: message.settings.autoMode.specialFunctions.lowerTankOverFlowLock,
-                SBT: message.settings.autoMode.specialFunctions.syncBothTank,
-                BA: message.settings.autoMode.specialFunctions.buzzerAlert
+                systemMode: message.settings.mode,
+                motorConfig: message.settings.motorSettings.configuration,
+                motor1Enabled: message.settings.motorSettings.motor1Enabled,
+                motor2Enabled: message.settings.motorSettings.motor2Enabled,
+                dualMotorSyncMode: message.settings.motorSettings.dualMotorSyncMode,
+                minAutoValueA: message.settings.tankAAutomation.minAutoValue,
+                maxAutoValueA: message.settings.tankAAutomation.maxAutoValue,
+                lowerThresholdA: message.settings.tankAAutomation.lowerThreshold,
+                lowerOverflowA: message.settings.tankAAutomation.lowerOverflow,
+                minAutoValueB: message.settings.tankBAutomation.minAutoValue,
+                maxAutoValueB: message.settings.tankBAutomation.maxAutoValue,
+                lowerThresholdB: message.settings.tankBAutomation.lowerThreshold,
+                lowerOverflowB: message.settings.tankBAutomation.lowerOverflow,
+                upperTankHeightA: message.settings.tankDimensions.upperTankA.height,
+                upperWaterFullHeightA: message.settings.tankDimensions.upperTankA.waterFullHeight,
+                upperWaterEmptyHeightA: message.settings.tankDimensions.upperTankA.waterEmptyHeight,
+                lowerTankHeightA: message.settings.tankDimensions.lowerTankA.height,
+                lowerWaterFullHeightA: message.settings.tankDimensions.lowerTankA.waterFullHeight,
+                lowerWaterEmptyHeightA: message.settings.tankDimensions.lowerTankA.waterEmptyHeight,
+                upperTankHeightB: message.settings.tankDimensions.upperTankB.height,
+                upperWaterFullHeightB: message.settings.tankDimensions.upperTankB.waterFullHeight,
+                upperWaterEmptyHeightB: message.settings.tankDimensions.upperTankB.waterEmptyHeight,
+                lowerTankHeightB: message.settings.tankDimensions.lowerTankB.height,
+                lowerWaterFullHeightB: message.settings.tankDimensions.lowerTankB.waterFullHeight,
+                lowerWaterEmptyHeightB: message.settings.tankDimensions.lowerTankB.waterEmptyHeight,
+                lowerSensorAEnable: message.settings.sensors.lowerTankA,
+                lowerSensorBEnable: message.settings.sensors.lowerTankB,
+                upperSensorAEnable: message.settings.sensors.upperTankA,
+                upperSensorBEnable: message.settings.sensors.upperTankB,
+                upperTankOverFlowLock: message.settings.autoMode.specialFunctions.upperTankOverFlowLock,
+                lowerTankOverFlowLock: message.settings.autoMode.specialFunctions.lowerTankOverFlowLock,
+                syncBothTank: message.settings.autoMode.specialFunctions.syncBothTank,
+                buzzerAlert: message.settings.autoMode.specialFunctions.buzzerAlert,
+                tankAAutomationEnabled: message.settings.tankAAutomation.automationEnabled,
+                tankBAutomationEnabled: message.settings.tankBAutomation.automationEnabled
               };
               ws.send(JSON.stringify(settingsMessage));
             }
             break;
           case 'wifiConfig':
-            // Send WiFi configuration
+            // Send v3.0 WiFi configuration
             if (message.MODE && message.SSID && message.PASS) {
               const wifiMessage = {
                 MODE: message.MODE,
                 SSID: message.SSID,
                 PASS: message.PASS,
-                SIP: message.SIP,
-                GW: message.GW,
-                SNM: message.SNM,
-                PDNS: message.PDNS,
-                SDNS: message.SDNS
+                SIP0: message.SIP0,
+                SIP1: message.SIP1,
+                SIP2: message.SIP2,
+                SIP3: message.SIP3,
+                SG0: message.SG0,
+                SG1: message.SG1,
+                SG2: message.SG2,
+                SG3: message.SG3,
+                SS0: message.SS0,
+                SS1: message.SS1,
+                SS2: message.SS2,
+                SS3: message.SS3,
+                SPD0: message.SPD0,
+                SPD1: message.SPD1,
+                SPD2: message.SPD2,
+                SPD3: message.SPD3
               };
               ws.send(JSON.stringify(wifiMessage));
             }
@@ -374,22 +500,39 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           case 'systemReset':
             ws.send('systemReset');
             break;
+          case 'getHomeData':
+            ws.send('getHomeData');
+            break;
+          case 'getSettingData':
+            ws.send('getSettingData');
+            break;
+          case 'getSensorData':
+            ws.send('getSensorData');
+            break;
+          case 'getWiFiConfig':
+            ws.send('getWiFiConfig');
+            break;
+          case 'homeData':
+            // Request home data
+            ws.send('getHomeData');
+            break;
+          case 'settingsData':
+            // Request settings data
+            ws.send('getSettingData');
+            break;
           default:
-            // Request data
+            // Default: request both home and settings data
             ws.send('getHomeData');
             ws.send('getSettingData');
         }
         
-        console.log('Sending message to ESP32:', message);
       } catch (error) {
-        console.error('Failed to send message:', error);
         setAppState((prev: AppState) => ({ 
           ...prev, 
           error: 'Failed to send message to server'
         }));
       }
     } else {
-      console.warn('WebSocket not connected');
       setAppState((prev: AppState) => ({ 
         ...prev, 
         error: 'Not connected to server'
@@ -402,7 +545,6 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   useEffect(() => {
     const storedHost = localStorage.getItem('tankHost');
     if (storedHost && !appState.isConnected) {
-      console.log('Auto-connecting to stored host:', storedHost);
       connect(storedHost);
     }
     

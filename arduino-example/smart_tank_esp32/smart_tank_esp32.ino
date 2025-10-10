@@ -38,15 +38,18 @@
  
  // WiFi credentials (will be loaded from NVS)
  String ssid = "Smart Water Tank v3.0";
- String password = "00000000";
+ String password = "12345678";
  String wifiMode = "AP";
  
- // Network configuration
- uint8_t SIP0 = 192, SIP1 = 168, SIP2 = 1, SIP3 = 1;
- uint8_t GW0 = 192, GW1 = 168, GW2 = 1, GW3 = 1;
- uint8_t SNM0 = 255, SNM1 = 255, SNM2 = 255, SNM3 = 0;
- uint8_t PDNS0 = 8, PDNS1 = 8, PDNS2 = 8, PDNS3 = 8;
- uint8_t SDNS0 = 8, SDNS1 = 8, SDNS2 = 4, SDNS3 = 4;
+// Network configuration
+uint8_t SIP0 = 192, SIP1 = 168, SIP2 = 1, SIP3 = 1;
+uint8_t GW0 = 192, GW1 = 168, GW2 = 1, GW3 = 1;
+uint8_t SNM0 = 255, SNM1 = 255, SNM2 = 255, SNM3 = 0;
+uint8_t PDNS0 = 8, PDNS1 = 8, PDNS2 = 8, PDNS3 = 8;
+uint8_t SDNS0 = 8, SDNS1 = 8, SDNS2 = 4, SDNS3 = 4;
+
+// IP configuration type
+String ipConfigType = "static"; // "static" or "dynamic"
  
  // WebSocket and HTTP servers
  WebSocketsServer webSocket = WebSocketsServer(81);
@@ -145,11 +148,12 @@
  bool tankAAutomationEnabled = true;
  bool tankBAutomationEnabled = false;
  
- // Timing and counters
- unsigned long lastUpdated = 0;
- uint32_t readDelayA = 500;
- uint32_t readDelayB = 500;
- uint8_t clientNumGlobal = 0;
+// Timing and counters
+unsigned long lastDataReceived = 0;  // Timestamp of last ESP-NOW data received
+unsigned long systemUptime = 0;      // System uptime in seconds
+uint32_t readDelayA = 500;
+uint32_t readDelayB = 500;
+uint8_t clientNumGlobal = 0;
  
  // ESP-NOW data
  struct_message subData;
@@ -159,38 +163,39 @@
  TaskHandle_t espNowAndLowerTankSensorsTaskHandle;
  TaskHandle_t countTaskHandle;
  
- // Function declarations
- void doBuzzerAlert(uint8_t count, uint16_t onDelay, uint16_t offDelay);
- void doStatusAlert(uint8_t count, uint16_t onDelay, uint16_t offDelay);
- void doFaultAlert(uint8_t count, uint16_t onDelay, uint16_t offDelay);
- void updateMotorStateInNVS(uint8_t motorNum, bool newState);
- void OnWiFiEvent(WiFiEvent_t event);
- void switchMotorON(uint8_t motorNum);
- void switchMotorOFF(uint8_t motorNum);
- void motorAutomation(void);
- void motorAutomationTankA(void);
- void motorAutomationTankB(void);
- void readLowTankHeightA(void);
- void readLowTankHeightB(void);
- void OnDataRecv(const esp_now_recv_info *recv_info, const uint8_t *incomingData, int len);
- void onWebSocketEvent(uint8_t client_num, WStype_t type, uint8_t *payload, size_t length);
- void motorControlTaskFunction(void *pvParameters);
- void espNowAndLowerTankSensorsTaskFunction(void *pvParameters);
- void countTaskFunction(void *pvParameters);
- void onIndexRequest();
- void onConfigurationRequest();
- void onWifiSettingRequest();
- void onPageNotFound();
- void faultOn(void);
- void faultOff(void);
- void buzzerOn(void);
- void buzzerOff(void);
- bool isUpperTankLevelWithinRange(String tank);
- bool isLowerTankOverflow(String tank);
- bool isLowerTankBelowThreshold(String tank);
- void sendWebSocketMessage(String msgType, JsonDocument& doc);
- void handleConfigurationUpdate(JsonDocument& doc);
- void handleWiFiConfigUpdate(JsonDocument& doc);
+// Function declarations
+void doBuzzerAlert(uint8_t count, uint16_t onDelay, uint16_t offDelay);
+void doStatusAlert(uint8_t count, uint16_t onDelay, uint16_t offDelay);
+void doFaultAlert(uint8_t count, uint16_t onDelay, uint16_t offDelay);
+void updateMotorStateInNVS(uint8_t motorNum, bool newState);
+void OnWiFiEvent(WiFiEvent_t event);
+void switchMotorON(uint8_t motorNum);
+void switchMotorOFF(uint8_t motorNum);
+void motorAutomation(void);
+void motorAutomationTankA(void);
+void motorAutomationTankB(void);
+void readLowTankHeightA(void);
+void readLowTankHeightB(void);
+void OnDataRecv(const esp_now_recv_info *recv_info, const uint8_t *incomingData, int len);
+void onWebSocketEvent(uint8_t client_num, WStype_t type, uint8_t *payload, size_t length);
+void motorControlTaskFunction(void *pvParameters);
+void espNowAndLowerTankSensorsTaskFunction(void *pvParameters);
+void countTaskFunction(void *pvParameters);
+void onIndexRequest();
+void onConfigurationRequest();
+void onWifiSettingRequest();
+void onPageNotFound();
+void faultOn(void);
+void faultOff(void);
+void buzzerOn(void);
+void buzzerOff(void);
+bool isUpperTankLevelWithinRange(String tank);
+bool isLowerTankOverflow(String tank);
+bool isLowerTankBelowThreshold(String tank);
+void sendWebSocketMessage(String msgType, JsonDocument& doc);
+void handleConfigurationUpdate(JsonDocument& doc);
+void handleWiFiConfigUpdate(JsonDocument& doc);
+String getWiFiStatusString(wl_status_t status);
  
  // Alert functions
  void doBuzzerAlert(uint8_t count, uint16_t onDelay, uint16_t offDelay) {
@@ -241,9 +246,24 @@
    }
  }
  
- void buzzerOff(void) {
-   digitalWrite(buzzerPin, LOW);
- }
+void buzzerOff(void) {
+  digitalWrite(buzzerPin, LOW);
+}
+
+// WiFi status decoder function
+String getWiFiStatusString(wl_status_t status) {
+  switch (status) {
+    case WL_NO_SHIELD: return "NO_SHIELD";
+    case WL_IDLE_STATUS: return "IDLE_STATUS";
+    case WL_NO_SSID_AVAIL: return "NO_SSID_AVAIL";
+    case WL_SCAN_COMPLETED: return "SCAN_COMPLETED";
+    case WL_CONNECTED: return "CONNECTED";
+    case WL_CONNECT_FAILED: return "CONNECT_FAILED";
+    case WL_CONNECTION_LOST: return "CONNECTION_LOST";
+    case WL_DISCONNECTED: return "DISCONNECTED";
+    default: return "UNKNOWN";
+  }
+}
  
  // Motor control functions
  void updateMotorStateInNVS(uint8_t motorNum, bool newState) {
@@ -671,7 +691,7 @@
      Serial.printf("Upper Tank B: %.1f%% (Distance: %.1fcm)\n", upperTankWaterLevelB, sensorDistanceCm);
    }
  
-   lastUpdated = 0; // Reset update counter
+   lastDataReceived = systemUptime; // Update timestamp of last data received
  }
  
  // Configuration update handler
@@ -969,126 +989,112 @@
    Serial.println("Configuration update completed");
  }
  
- // WiFi configuration update handler
- void handleWiFiConfigUpdate(JsonDocument& doc) {
-   String wifiModeLive = doc["MODE"].as<String>();
-   String ssidLive = doc["SSID"].as<String>();
-   String passwordLive = doc["PASS"].as<String>();
- 
-   configs.begin("configData", RW_MODE);
-   
-   if (wifiModeLive == "AP" || wifiModeLive == "access_point") {
-     Serial.println("Updating AP mode configuration");
-     
-     if (wifiModeLive != wifiMode) {
-       wifiMode = "AP";
-       configs.putString("WIFIMode", "AP");
-     }
-     if (ssidLive != ssid) {
-       ssid = ssidLive;
-       configs.putString("SSID", ssidLive);
-     }
-     if (passwordLive != password) {
-       password = passwordLive;
-       configs.putString("PASS", passwordLive);
-     }
-     
-     // Handle static IP for AP mode
-     if (doc.containsKey("SIP0")) {
-       SIP0 = doc["SIP0"]; SIP1 = doc["SIP1"];
-       SIP2 = doc["SIP2"]; SIP3 = doc["SIP3"];
-       configs.putUShort("SIP0", SIP0);
-       configs.putUShort("SIP1", SIP1);
-       configs.putUShort("SIP2", SIP2);
-       configs.putUShort("SIP3", SIP3);
-     }
-     
-     if (doc.containsKey("SG0")) {
-       GW0 = doc["SG0"]; GW1 = doc["SG1"];
-       GW2 = doc["SG2"]; GW3 = doc["SG3"];
-       configs.putUShort("SG0", GW0);
-       configs.putUShort("SG1", GW1);
-       configs.putUShort("SG2", GW2);
-       configs.putUShort("SG3", GW3);
-     }
-     
-     if (doc.containsKey("SS0")) {
-       SNM0 = doc["SS0"]; SNM1 = doc["SS1"];
-       SNM2 = doc["SS2"]; SNM3 = doc["SS3"];
-       configs.putUShort("SS0", SNM0);
-       configs.putUShort("SS1", SNM1);
-       configs.putUShort("SS2", SNM2);
-       configs.putUShort("SS3", SNM3);
-     }
-     
-   } else if (wifiModeLive == "STA" || wifiModeLive == "station") {
-     Serial.println("Updating STA mode configuration");
-     
-     if (wifiModeLive != wifiMode) {
-       wifiMode = "STA";
-       configs.putString("WIFIMode", "STA");
-     }
-     if (ssidLive != ssid) {
-       ssid = ssidLive;
-       configs.putString("SSID", ssidLive);
-     }
-     if (passwordLive != password) {
-       password = passwordLive;
-       configs.putString("PASS", passwordLive);
-     }
-     
-     // Handle static IP for STA mode
-     if (doc.containsKey("SIP0")) {
-       SIP0 = doc["SIP0"]; SIP1 = doc["SIP1"];
-       SIP2 = doc["SIP2"]; SIP3 = doc["SIP3"];
-       configs.putUShort("SIP0", SIP0);
-       configs.putUShort("SIP1", SIP1);
-       configs.putUShort("SIP2", SIP2);
-       configs.putUShort("SIP3", SIP3);
-     }
-     
-     if (doc.containsKey("SG0")) {
-       GW0 = doc["SG0"]; GW1 = doc["SG1"];
-       GW2 = doc["SG2"]; GW3 = doc["SG3"];
-       configs.putUShort("SG0", GW0);
-       configs.putUShort("SG1", GW1);
-       configs.putUShort("SG2", GW2);
-       configs.putUShort("SG3", GW3);
-     }
-     
-     if (doc.containsKey("SS0")) {
-       SNM0 = doc["SS0"]; SNM1 = doc["SS1"];
-       SNM2 = doc["SS2"]; SNM3 = doc["SS3"];
-       configs.putUShort("SS0", SNM0);
-       configs.putUShort("SS1", SNM1);
-       configs.putUShort("SS2", SNM2);
-       configs.putUShort("SS3", SNM3);
-     }
-     
-     if (doc.containsKey("SPD0")) {
-       PDNS0 = doc["SPD0"]; PDNS1 = doc["SPD1"];
-       PDNS2 = doc["SPD2"]; PDNS3 = doc["SPD3"];
-       configs.putUShort("SPD0", PDNS0);
-       configs.putUShort("SPD1", PDNS1);
-       configs.putUShort("SPD2", PDNS2);
-       configs.putUShort("SPD3", PDNS3);
-     }
-   }
-   
-   configs.end();
-   
-   // Send success response
-   JsonDocument response;
-   response["type"] = "wifiConfigUpdate";
-   response["status"] = "success";
-   response["message"] = "WiFi configuration saved. Restart required.";
-   
-   String responseStr;
-   serializeJson(response, responseStr);
-   webSocket.sendTXT(clientNumGlobal, responseStr);
-   
-   Serial.println("WiFi configuration updated");
- }
+// WiFi configuration update handler - FIXED VERSION
+void handleWiFiConfigUpdate(JsonDocument& doc) {
+  String wifiModeLive = doc["MODE"].as<String>();
+  String ssidLive = doc["SSID"].as<String>();
+  String passwordLive = doc["PASS"].as<String>();
+
+  configs.begin("configData", RW_MODE);
+  
+  // Normalize WiFi mode to "AP" or "STA" only
+  if (wifiModeLive == "access_point" || wifiModeLive == "AP") {
+    wifiModeLive = "AP";
+  } else if (wifiModeLive == "station" || wifiModeLive == "STA") {
+    wifiModeLive = "STA";
+  }
+  
+  // Determine IP configuration type based on presence and validity of static IP values
+  String newIpConfigType = "dynamic"; // Default to dynamic
+  
+  if (doc.containsKey("SIP0") && doc.containsKey("SG0") && doc.containsKey("SS0")) {
+    uint8_t sip0 = doc["SIP0"];
+    uint8_t sip1 = doc["SIP1"];
+    uint8_t sip2 = doc["SIP2"];
+    uint8_t sip3 = doc["SIP3"];
+    
+    // Valid static IP must have at least first octet non-zero
+    if (sip0 != 0) {
+      newIpConfigType = "static";
+      Serial.println("Static IP configuration detected");
+      
+      // Save all static IP parameters
+      SIP0 = sip0; SIP1 = sip1; SIP2 = sip2; SIP3 = sip3;
+      configs.putUShort("SIP0", SIP0);
+      configs.putUShort("SIP1", SIP1);
+      configs.putUShort("SIP2", SIP2);
+      configs.putUShort("SIP3", SIP3);
+      
+      GW0 = doc["SG0"]; GW1 = doc["SG1"];
+      GW2 = doc["SG2"]; GW3 = doc["SG3"];
+      configs.putUShort("SG0", GW0);
+      configs.putUShort("SG1", GW1);
+      configs.putUShort("SG2", GW2);
+      configs.putUShort("SG3", GW3);
+      
+      SNM0 = doc["SS0"]; SNM1 = doc["SS1"];
+      SNM2 = doc["SS2"]; SNM3 = doc["SS3"];
+      configs.putUShort("SS0", SNM0);
+      configs.putUShort("SS1", SNM1);
+      configs.putUShort("SS2", SNM2);
+      configs.putUShort("SS3", SNM3);
+      
+      if (doc.containsKey("SPD0")) {
+        PDNS0 = doc["SPD0"]; PDNS1 = doc["SPD1"];
+        PDNS2 = doc["SPD2"]; PDNS3 = doc["SPD3"];
+        configs.putUShort("SPD0", PDNS0);
+        configs.putUShort("SPD1", PDNS1);
+        configs.putUShort("SPD2", PDNS2);
+        configs.putUShort("SPD3", PDNS3);
+      }
+    } else {
+      newIpConfigType = "dynamic";
+      Serial.println("Dynamic IP configuration (zero IP values)");
+    }
+  } else {
+    newIpConfigType = "dynamic";
+    Serial.println("Dynamic IP configuration (no static IP parameters)");
+  }
+  
+  // Update all configuration values
+  if (newIpConfigType != ipConfigType) {
+    ipConfigType = newIpConfigType;
+    configs.putString("ipConfigType", ipConfigType);
+    Serial.printf("IP configuration type updated: %s\n", ipConfigType.c_str());
+  }
+  
+  if (wifiModeLive != wifiMode) {
+    wifiMode = wifiModeLive;
+    configs.putString("WIFIMode", wifiModeLive);
+    Serial.printf("WiFi mode updated: %s\n", wifiModeLive.c_str());
+  }
+  
+  if (ssidLive != ssid) {
+    ssid = ssidLive;
+    configs.putString("SSID", ssidLive);
+    Serial.printf("SSID updated: %s\n", ssidLive.c_str());
+  }
+  
+  if (passwordLive != password) {
+    password = passwordLive;
+    configs.putString("PASS", passwordLive);
+    Serial.printf("Password updated (length: %d)\n", passwordLive.length());
+  }
+  
+  configs.end();
+  
+  // Send success response
+  JsonDocument response;
+  response["type"] = "wifiConfigUpdate";
+  response["status"] = "success";
+  response["message"] = "WiFi configuration saved. Please restart device to apply changes.";
+  
+  String responseStr;
+  serializeJson(response, responseStr);
+  webSocket.sendTXT(clientNumGlobal, responseStr);
+  
+  Serial.println("WiFi configuration update completed");
+}
  
  // WebSocket event handler
  void onWebSocketEvent(uint8_t client_num, WStype_t type, uint8_t *payload, size_t length) {
@@ -1163,10 +1169,12 @@
          // Send comprehensive home dashboard data
          JsonDocument jsonDoc;
          
-         char timeStr[10];
-         snprintf(timeStr, sizeof(timeStr), "%.2f", (float)lastUpdated / 10);
-         jsonDoc["type"] = "homeData";
-         jsonDoc["lastUpdate"] = timeStr;
+        // Calculate time since last data received from transmitter
+        unsigned long timeSinceLastData = (lastDataReceived > 0) ? (systemUptime - lastDataReceived) : 0;
+        char timeStr[10];
+        snprintf(timeStr, sizeof(timeStr), "%lu", timeSinceLastData);
+        jsonDoc["type"] = "homeData";
+        jsonDoc["lastUpdate"] = timeStr;
          jsonDoc["systemMode"] = systemMode;
          
          // Motor states
@@ -1291,29 +1299,37 @@
          serializeJson(jsonDoc, jsonString);
          webSocket.sendTXT(client_num, jsonString);
          
-       } else if (strcmp((char *)payload, "getWiFiConfig") == 0) {
-         // Send WiFi configuration
-         JsonDocument jsonDoc;
-         jsonDoc["type"] = "wifiConfig";
-         
-         jsonDoc["wifiMode"] = wifiMode;
-         jsonDoc["ssid"] = ssid;
-         jsonDoc["password"] = password;
-         
-         jsonDoc["staticIP"] = String(SIP0) + "." + String(SIP1) + "." + String(SIP2) + "." + String(SIP3);
-         jsonDoc["gateway"] = String(GW0) + "." + String(GW1) + "." + String(GW2) + "." + String(GW3);
-         jsonDoc["subnet"] = String(SNM0) + "." + String(SNM1) + "." + String(SNM2) + "." + String(SNM3);
-         jsonDoc["primaryDNS"] = String(PDNS0) + "." + String(PDNS1) + "." + String(PDNS2) + "." + String(PDNS3);
-         
-         if (wifiMode == "STA") {
-           jsonDoc["currentIP"] = WiFi.localIP().toString();
-         } else {
-           jsonDoc["currentIP"] = WiFi.softAPIP().toString();
-         }
-         
-         String jsonString;
-         serializeJson(jsonDoc, jsonString);
-         webSocket.sendTXT(client_num, jsonString);
+      } else if (strcmp((char *)payload, "getWiFiConfig") == 0) {
+        // Send WiFi configuration
+        JsonDocument jsonDoc;
+        jsonDoc["type"] = "wifiConfig";
+        
+        jsonDoc["wifiMode"] = wifiMode;
+        jsonDoc["ssid"] = ssid;
+        jsonDoc["password"] = password;
+        jsonDoc["ipConfigType"] = ipConfigType;
+        
+        if (ipConfigType == "static") {
+          jsonDoc["staticIP"] = String(SIP0) + "." + String(SIP1) + "." + String(SIP2) + "." + String(SIP3);
+          jsonDoc["gateway"] = String(GW0) + "." + String(GW1) + "." + String(GW2) + "." + String(GW3);
+          jsonDoc["subnet"] = String(SNM0) + "." + String(SNM1) + "." + String(SNM2) + "." + String(SNM3);
+          jsonDoc["primaryDNS"] = String(PDNS0) + "." + String(PDNS1) + "." + String(PDNS2) + "." + String(PDNS3);
+        } else {
+          jsonDoc["staticIP"] = "0.0.0.0";
+          jsonDoc["gateway"] = "0.0.0.0";
+          jsonDoc["subnet"] = "0.0.0.0";
+          jsonDoc["primaryDNS"] = "0.0.0.0";
+        }
+        
+        if (wifiMode == "STA") {
+          jsonDoc["currentIP"] = WiFi.localIP().toString();
+        } else {
+          jsonDoc["currentIP"] = WiFi.softAPIP().toString();
+        }
+        
+        String jsonString;
+        serializeJson(jsonDoc, jsonString);
+        webSocket.sendTXT(client_num, jsonString);
          
        } else {
          Serial.println("Unknown command");
@@ -1366,18 +1382,29 @@
    }
  }
  
- void countTaskFunction(void *pvParameters) {
-   Serial.printf("Counter Task started on core %d\n", xPortGetCoreID());
- 
-   for (;;) {
-     vTaskDelay(pdMS_TO_TICKS(100));
-     if (lastUpdated >= 4294967290) {
-       lastUpdated = 0;
-     } else {
-       lastUpdated++;
-     }
-   }
- }
+void countTaskFunction(void *pvParameters) {
+  Serial.printf("System Uptime Task started on core %d\n", xPortGetCoreID());
+
+  for (;;) {
+    vTaskDelay(pdMS_TO_TICKS(1000)); // Update every 1 second
+    
+    // Increment system uptime
+    systemUptime++;
+    
+    // Check if we haven't received data from transmitter for more than 10 minutes (600 seconds)
+    if (lastDataReceived > 0 && (systemUptime - lastDataReceived) > 600) {
+      Serial.printf("WARNING: No data from transmitter for %lu seconds (10+ minutes)\n", 
+                    systemUptime - lastDataReceived);
+      
+      // Set fault condition for extended communication loss
+      if ((systemUptime - lastDataReceived) > 900) { // 15 minutes
+        Serial.println("CRITICAL: Transmitter communication lost for 15+ minutes!");
+        faultOn();
+        doBuzzerAlert(5, 1000, 500); // Long alert for critical condition
+      }
+    }
+  }
+}
  
  // WiFi event handler
  void OnWiFiEvent(WiFiEvent_t event) {
@@ -1524,10 +1551,11 @@
      configs.putFloat("LTWFHB", 70.0);
      configs.putFloat("LTWEHB", 5.0);
      
-     // WiFi configuration
-     configs.putString("WIFIMode", "AP");
-     configs.putString("SSID", "Smart Water Tank v3.0");
-     configs.putString("PASS", "00000000");
+    // WiFi configuration
+    configs.putString("WIFIMode", "AP");
+    configs.putString("SSID", "Smart Water Tank v3.0");
+    configs.putString("PASS", "00000000");
+    configs.putString("ipConfigType", "static");
      
      // Network configuration
      configs.putUShort("SIP0", 192);
@@ -1614,10 +1642,14 @@
    upperSensorAEnable = configs.getBool("UAE", false);
    upperSensorBEnable = configs.getBool("UBE", false);
    
-   // WiFi configuration
-   ssid = configs.getString("SSID", "Smart Water Tank v3.0");
-   password = configs.getString("PASS", "00000000");
-   wifiMode = configs.getString("WIFIMode", "AP");
+  // WiFi configuration
+  ssid = configs.getString("SSID", "Smart Water Tank v3.0");
+  password = configs.getString("PASS", "12345678");
+  wifiMode = configs.getString("WIFIMode", "AP");
+  ipConfigType = configs.getString("ipConfigType", "static");
+  
+  Serial.printf("Loaded from NVS - SSID: '%s', Password length: %d, Mode: %s, IPConfig: %s\n", 
+                ssid.c_str(), password.length(), wifiMode.c_str(), ipConfigType.c_str());
    
    SIP0 = configs.getUShort("SIP0", 192);
    SIP1 = configs.getUShort("SIP1", 168);
@@ -1690,19 +1722,20 @@
      }
    }
  
-   // Configuration Mode Setup
-   if (configMode) {
-     Serial.println("\n=== CONFIGURATION MODE ===");
-     
-     IPAddress local_ip(192, 168, 1, 1);
-     IPAddress gateway(192, 168, 1, 1);
-     IPAddress subnet(255, 255, 255, 0);
- 
-     WiFi.mode(WIFI_AP);
-     WiFi.softAP("Smart Water Tank v3.0", "00000000");
-     WiFi.softAPConfig(local_ip, gateway, subnet);
-     Serial.println("Configuration AP started");
-     Serial.printf("AP IP: %s\n", WiFi.softAPIP().toString().c_str());
+  // Configuration Mode Setup
+  if (configMode) {
+    Serial.println("\n=== CONFIGURATION MODE ===");
+    
+    IPAddress local_ip(192, 168, 1, 1);
+    IPAddress gateway(192, 168, 1, 1);
+    IPAddress subnet(255, 255, 255, 0);
+
+    WiFi.mode(WIFI_AP);
+    WiFi.softAP(ssid, password);
+    WiFi.softAPConfig(local_ip, gateway, subnet);
+    Serial.println("Configuration AP started");
+    Serial.printf("AP SSID: %s\n", ssid);
+    Serial.printf("AP IP: %s\n", password);
  
      if (!LittleFS.begin(false, "/littlefs", 10, "littlefs")) {
        Serial.println("ERROR: LittleFS mount failed!");
@@ -1733,87 +1766,245 @@
  
    doBuzzerAlert(2, 500, 500);
  
-   // Normal Operation Mode Setup
-   Serial.println("\n=== NORMAL OPERATION MODE ===");
-   
-   char SSIDTemp[50];
-   char PASSTemp[20];
-   ssid.toCharArray(SSIDTemp, 50);
-   password.toCharArray(PASSTemp, 20);
-   
-   WiFi.onEvent(OnWiFiEvent);
- 
-   if (wifiMode == "STA") {
-     Serial.println("Starting Station Mode...");
-     
-     IPAddress local_ip(SIP0, SIP1, SIP2, SIP3);
-     IPAddress gateway(GW0, GW1, GW2, GW3);
-     IPAddress subnet(SNM0, SNM1, SNM2, SNM3);
-     IPAddress primaryDNS(PDNS0, PDNS1, PDNS2, PDNS3);
-     IPAddress secondaryDNS(SDNS0, SDNS1, SDNS2, SDNS3);
-     
-     if (!WiFi.config(local_ip, gateway, subnet, primaryDNS, secondaryDNS)) {
-       Serial.println("WiFi config failed!");
-       faultOn();
-     }
-     
-     WiFi.mode(WIFI_STA);
-     WiFi.setAutoReconnect(true);
-     WiFi.setHostname("SWT_ControlNode_v3");
-     WiFi.begin(SSIDTemp, PASSTemp);
-     
-     Serial.printf("Connecting to %s", ssid.c_str());
-     int attempts = 0;
-     while (WiFi.status() != WL_CONNECTED && attempts < 30) {
-       doFaultAlert(1, 300, 200);
-       Serial.print(".");
-       attempts++;
-       delay(500);
-     }
-     
-     if (WiFi.status() == WL_CONNECTED) {
-       Serial.println("\nWiFi connected!");
-       Serial.printf("IP Address: %s\n", WiFi.localIP().toString().c_str());
-       Serial.printf("MAC Address: %s\n", WiFi.macAddress().c_str());
-       faultOff();
-     } else {
-       Serial.println("\nWiFi connection failed!");
-       Serial.println("Starting fallback AP mode...");
-       
-       WiFi.mode(WIFI_AP);
-       WiFi.softAP(SSIDTemp, PASSTemp);
-       IPAddress fallback_ip(192, 168, 1, 1);
-       IPAddress fallback_gw(192, 168, 1, 1);
-       IPAddress fallback_sn(255, 255, 255, 0);
-       WiFi.softAPConfig(fallback_ip, fallback_gw, fallback_sn);
-       Serial.printf("Fallback AP IP: %s\n", WiFi.softAPIP().toString().c_str());
-     }
-     
-   } else if (wifiMode == "AP") {
-     Serial.println("Starting Access Point Mode...");
-     
-     IPAddress local_ip(SIP0, SIP1, SIP2, SIP3);
-     IPAddress gateway(GW0, GW1, GW2, GW3);
-     IPAddress subnet(SNM0, SNM1, SNM2, SNM3);
-     
-     WiFi.mode(WIFI_MODE_APSTA);
-     WiFi.softAP(SSIDTemp, PASSTemp);
-     WiFi.softAPConfig(local_ip, gateway, subnet);
-     
-     Serial.printf("AP SSID: %s\n", ssid.c_str());
-     Serial.printf("AP IP: %s\n", WiFi.softAPIP().toString().c_str());
-     
-   } else {
-     Serial.printf("ERROR: Unknown WiFi mode: %s\n", wifiMode.c_str());
-     while (1) {
-       faultOn();
-       buzzerOn();
-       delay(1000);
-       faultOff();
-       buzzerOff();
-       delay(1000);
-     }
-   }
+  // Normal Operation Mode Setup
+  Serial.println("\n=== NORMAL OPERATION MODE ===");
+  Serial.printf("WiFi Configuration - Mode: %s, SSID: '%s', IP Type: %s\n", 
+    wifiMode.c_str(), ssid.c_str(), ipConfigType.c_str());
+
+// Disconnect any existing connections
+WiFi.disconnect(true);
+delay(100);
+
+if (wifiMode == "STA") {
+Serial.println("\n>>> Starting Station Mode <<<");
+
+// Set WiFi mode first
+WiFi.mode(WIFI_STA);
+WiFi.setAutoReconnect(true);
+WiFi.persistent(false); // Don't save WiFi config to flash
+
+String hostname = "SWT_Node_" + WiFi.macAddress().substring(12);
+hostname.replace(":", "");
+WiFi.setHostname(hostname.c_str());
+Serial.printf("Hostname: %s\n", hostname.c_str());
+
+// Configure static IP ONLY if enabled
+if (ipConfigType == "static") {
+Serial.println("Applying static IP configuration...");
+IPAddress local_ip(SIP0, SIP1, SIP2, SIP3);
+IPAddress gateway(GW0, GW1, GW2, GW3);
+IPAddress subnet(SNM0, SNM1, SNM2, SNM3);
+IPAddress primaryDNS(PDNS0, PDNS1, PDNS2, PDNS3);
+IPAddress secondaryDNS(SDNS0, SDNS1, SDNS2, SDNS3);
+
+if (!WiFi.config(local_ip, gateway, subnet, primaryDNS, secondaryDNS)) {
+Serial.println("WARNING: Static IP configuration failed!");
+} else {
+Serial.printf("Static IP set: %d.%d.%d.%d\n", SIP0, SIP1, SIP2, SIP3);
+}
+} else {
+Serial.println("Using DHCP for dynamic IP...");
+// Ensure no static config is applied
+WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE);
+}
+
+// Scan for target network
+Serial.println("\nScanning for networks...");
+int n = WiFi.scanNetworks();
+Serial.printf("Found %d networks:\n", n);
+
+bool targetFound = false;
+int targetRSSI = 0;
+int targetChannel = 0;
+
+for (int i = 0; i < n; i++) {
+String currentSSID = WiFi.SSID(i);
+int currentRSSI = WiFi.RSSI(i);
+
+Serial.printf("  %d: %s (RSSI: %d dBm, Ch: %d) %s\n", 
+        i + 1, 
+        currentSSID.c_str(), 
+        currentRSSI,
+        WiFi.channel(i),
+        WiFi.encryptionType(i) == WIFI_AUTH_OPEN ? "[OPEN]" : "[SECURED]");
+
+if (currentSSID == ssid) {
+targetFound = true;
+targetRSSI = currentRSSI;
+targetChannel = WiFi.channel(i);
+Serial.printf(">>> TARGET NETWORK FOUND: '%s' at %d dBm on channel %d <<<\n", 
+          ssid.c_str(), targetRSSI, targetChannel);
+}
+}
+
+if (!targetFound) {
+Serial.printf("\n!!! WARNING: Target network '%s' NOT FOUND in scan !!!\n", ssid.c_str());
+Serial.println("Possible reasons:");
+Serial.println("  1. SSID is incorrect (case-sensitive)");
+Serial.println("  2. Router is out of range");
+Serial.println("  3. Router is on 5GHz band (ESP32 only supports 2.4GHz)");
+Serial.println("  4. Router is powered off");
+Serial.println("\nProceeding with connection attempt anyway...");
+}
+
+// Begin WiFi connection
+Serial.printf("\nConnecting to '%s'...\n", ssid.c_str());
+Serial.printf("Password length: %d characters\n", password.length());
+
+WiFi.begin(ssid.c_str(), password.c_str());
+
+// Connection attempt with detailed status
+int attempts = 0;
+const int maxAttempts = 30; // 15 seconds total
+
+Serial.println("\nConnection progress:");
+while (WiFi.status() != WL_CONNECTED && attempts < maxAttempts) {
+delay(500);
+attempts++;
+
+wl_status_t status = WiFi.status();
+Serial.printf("[%2d] Status: %-20s RSSI: %d dBm\n", 
+        attempts, 
+        getWiFiStatusString(status).c_str(),
+        WiFi.RSSI());
+
+// Visual feedback
+if (attempts % 2 == 0) {
+digitalWrite(statusPin, HIGH);
+} else {
+digitalWrite(statusPin, LOW);
+}
+
+// Check for specific failure conditions
+if (status == WL_CONNECT_FAILED) {
+Serial.println("\n!!! CONNECTION FAILED - Wrong password or router rejected connection !!!");
+break;
+} else if (status == WL_NO_SSID_AVAIL) {
+Serial.println("\n!!! SSID NOT AVAILABLE - Router not responding !!!");
+break;
+}
+}
+
+// Check final connection status
+if (WiFi.status() == WL_CONNECTED) {
+Serial.println("\n========================================");
+Serial.println("    ✓ WiFi Connected Successfully!");
+Serial.println("========================================");
+Serial.printf("SSID:       %s\n", WiFi.SSID().c_str());
+Serial.printf("IP Address: %s\n", WiFi.localIP().toString().c_str());
+Serial.printf("Gateway:    %s\n", WiFi.gatewayIP().toString().c_str());
+Serial.printf("Subnet:     %s\n", WiFi.subnetMask().toString().c_str());
+Serial.printf("DNS:        %s\n", WiFi.dnsIP().toString().c_str());
+Serial.printf("MAC:        %s\n", WiFi.macAddress().c_str());
+Serial.printf("RSSI:       %d dBm\n", WiFi.RSSI());
+Serial.printf("Channel:    %d\n", WiFi.channel());
+Serial.println("========================================\n");
+
+faultOff();
+digitalWrite(statusPin, HIGH);
+doBuzzerAlert(2, 200, 100);
+
+} else {
+Serial.println("\n========================================");
+Serial.println("    ✗ WiFi Connection Failed!");
+Serial.println("========================================");
+Serial.printf("Final Status: %s (%d)\n", getWiFiStatusString(WiFi.status()).c_str(), WiFi.status());
+Serial.printf("Attempts:     %d\n", attempts);
+Serial.println("\nTroubleshooting steps:");
+Serial.println("1. Verify SSID is correct (case-sensitive)");
+Serial.println("2. Verify password is correct");
+Serial.println("3. Ensure router is on 2.4GHz band");
+Serial.println("4. Check router security type (WPA2 recommended)");
+Serial.println("5. Try moving device closer to router");
+Serial.println("6. Check if MAC filtering is enabled on router");
+Serial.println("========================================\n");
+
+// Start fallback AP mode
+Serial.println("Starting FALLBACK Access Point mode...");
+WiFi.mode(WIFI_AP);
+
+String fallbackSSID = "SWT_FALLBACK_" + WiFi.macAddress().substring(12);
+fallbackSSID.replace(":", "");
+
+WiFi.softAP(fallbackSSID.c_str(), "12345678");
+
+IPAddress fallbackIP(192, 168, 4, 1);
+IPAddress fallbackGW(192, 168, 4, 1);
+IPAddress fallbackSN(255, 255, 255, 0);
+WiFi.softAPConfig(fallbackIP, fallbackGW, fallbackSN);
+
+Serial.printf("Fallback AP SSID: %s\n", fallbackSSID.c_str());
+Serial.printf("Fallback Password: 12345678\n");
+Serial.printf("Fallback IP: %s\n", WiFi.softAPIP().toString().c_str());
+Serial.println("Connect to this network to reconfigure WiFi settings\n");
+
+faultOn();
+doBuzzerAlert(3, 500, 200);
+}
+
+} else if (wifiMode == "AP") {
+Serial.println("\n>>> Starting Access Point Mode <<<");
+
+WiFi.mode(WIFI_AP);
+WiFi.persistent(false);
+
+// Start AP
+Serial.printf("Creating AP with SSID: '%s'\n", ssid.c_str());
+Serial.printf("Password length: %d\n", password.length());
+
+bool apStarted = WiFi.softAP(ssid.c_str(), password.c_str());
+
+if (!apStarted) {
+Serial.println("ERROR: Failed to start Access Point!");
+faultOn();
+doBuzzerAlert(5, 200, 200);
+}
+
+// Configure IP address
+if (ipConfigType == "static") {
+Serial.println("Using custom static IP for AP...");
+IPAddress local_ip(SIP0, SIP1, SIP2, SIP3);
+IPAddress gateway(GW0, GW1, GW2, GW3);
+IPAddress subnet(SNM0, SNM1, SNM2, SNM3);
+WiFi.softAPConfig(local_ip, gateway, subnet);
+Serial.printf("AP IP configured: %d.%d.%d.%d\n", SIP0, SIP1, SIP2, SIP3);
+} else {
+Serial.println("Using default AP IP configuration...");
+IPAddress default_ip(192, 168, 4, 1);
+IPAddress default_gw(192, 168, 4, 1);
+IPAddress default_sn(255, 255, 255, 0);
+WiFi.softAPConfig(default_ip, default_gw, default_sn);
+}
+
+delay(100); // Wait for AP to stabilize
+
+Serial.println("\n========================================");
+Serial.println("    ✓ Access Point Started!");
+Serial.println("========================================");
+Serial.printf("AP SSID:    %s\n", ssid.c_str());
+Serial.printf("AP IP:      %s\n", WiFi.softAPIP().toString().c_str());
+Serial.printf("AP MAC:     %s\n", WiFi.softAPmacAddress().c_str());
+Serial.printf("Max Clients: %d\n", WiFi.softAPgetStationNum());
+Serial.println("========================================\n");
+
+faultOff();
+digitalWrite(statusPin, HIGH);
+doBuzzerAlert(1, 500, 100);
+
+} else {
+Serial.printf("\n!!! ERROR: Unknown WiFi mode '%s' !!!\n", wifiMode.c_str());
+Serial.println("Valid modes are: 'STA' or 'AP'");
+Serial.println("System will halt. Please reconfigure in configuration mode.\n");
+
+while (1) {
+faultOn();
+buzzerOn();
+delay(1000);
+faultOff();
+buzzerOff();
+delay(1000);
+}
+}
  
    // Initialize LittleFS for web files
    if (!LittleFS.begin(false, "/littlefs", 10, "littlefs")) {
@@ -1865,15 +2056,15 @@
      1
    );
  
-   xTaskCreatePinnedToCore(
-     countTaskFunction,
-     "Counter",
-     1000,
-     NULL,
-     1,
-     &countTaskHandle,
-     0
-   );
+  xTaskCreatePinnedToCore(
+    countTaskFunction,
+    "Counter",
+    2048,
+    NULL,
+    1,
+    &countTaskHandle,
+    0
+  );
  
    Serial.println("\n=================================");
    Serial.println("System Initialization Complete!");
