@@ -1,7 +1,8 @@
-// Smart Water Tank PWA - Service Worker
-const CACHE_NAME = 'smart-tank-pwa-v2';
-const STATIC_CACHE = 'smart-tank-static-v2';
-const DYNAMIC_CACHE = 'smart-tank-dynamic-v2';
+// Smart Water Tank PWA - Enhanced Service Worker
+const CACHE_NAME = 'smart-tank-pwa-v3';
+const STATIC_CACHE = 'smart-tank-static-v3';
+const DYNAMIC_CACHE = 'smart-tank-dynamic-v3';
+const API_CACHE = 'smart-tank-api-v3';
 
 // Assets to cache for offline functionality
 const STATIC_ASSETS = [
@@ -12,6 +13,13 @@ const STATIC_ASSETS = [
   '/icon.svg',
   '/vite.svg'
 ];
+
+// Cache strategies
+const CACHE_STRATEGIES = {
+  CACHE_FIRST: 'cache-first',
+  NETWORK_FIRST: 'network-first',
+  STALE_WHILE_REVALIDATE: 'stale-while-revalidate'
+};
 
 // Install event - cache static assets
 self.addEventListener('install', (event) => {
@@ -40,7 +48,7 @@ self.addEventListener('activate', (event) => {
       .then((cacheNames) => {
         return Promise.all(
           cacheNames.map((cacheName) => {
-            if (cacheName !== STATIC_CACHE && cacheName !== DYNAMIC_CACHE) {
+            if (cacheName !== STATIC_CACHE && cacheName !== DYNAMIC_CACHE && cacheName !== API_CACHE) {
               console.log('Service Worker: Deleting old cache', cacheName);
               return caches.delete(cacheName);
             }
@@ -70,50 +78,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   event.respondWith(
-    caches.match(request)
-      .then((cachedResponse) => {
-        // Return cached version if available
-        if (cachedResponse) {
-          console.log('Service Worker: Serving from cache', request.url);
-          return cachedResponse;
-        }
-
-        // Fetch from network
-        return fetch(request)
-          .then((networkResponse) => {
-            // Check if response is valid
-            if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-              return networkResponse;
-            }
-
-            // Clone the response
-            const responseToCache = networkResponse.clone();
-
-            // Cache dynamic content
-            if (shouldCache(request.url)) {
-              caches.open(DYNAMIC_CACHE)
-                .then((cache) => {
-                  cache.put(request, responseToCache);
-                });
-            }
-
-            return networkResponse;
-          })
-          .catch((error) => {
-            console.log('Service Worker: Network request failed', request.url, error);
-            
-            // Return offline page for navigation requests
-            if (request.mode === 'navigate') {
-              return caches.match('/') || new Response('Offline', {
-                status: 503,
-                statusText: 'Service Unavailable'
-              });
-            }
-            
-            // Return cached version if available for other requests
-            return caches.match(request);
-          });
-      })
+    handleRequest(request)
   );
 });
 
@@ -170,6 +135,105 @@ self.addEventListener('notificationclick', (event) => {
     );
   }
 });
+
+// Enhanced request handler with intelligent caching strategies
+async function handleRequest(request) {
+  const url = new URL(request.url);
+  const strategy = getCacheStrategy(request);
+  
+  switch (strategy) {
+    case CACHE_STRATEGIES.CACHE_FIRST:
+      return cacheFirst(request);
+    case CACHE_STRATEGIES.NETWORK_FIRST:
+      return networkFirst(request);
+    case CACHE_STRATEGIES.STALE_WHILE_REVALIDATE:
+      return staleWhileRevalidate(request);
+    default:
+      return networkFirst(request);
+  }
+}
+
+// Cache-first strategy for static assets
+async function cacheFirst(request) {
+  const cachedResponse = await caches.match(request);
+  if (cachedResponse) {
+    return cachedResponse;
+  }
+  
+  try {
+    const networkResponse = await fetch(request);
+    if (networkResponse.ok) {
+      const cache = await caches.open(STATIC_CACHE);
+      cache.put(request, networkResponse.clone());
+    }
+    return networkResponse;
+  } catch (error) {
+    console.log('Service Worker: Network request failed', request.url, error);
+    return new Response('Offline', { status: 503 });
+  }
+}
+
+// Network-first strategy for API calls
+async function networkFirst(request) {
+  try {
+    const networkResponse = await fetch(request);
+    if (networkResponse.ok) {
+      const cache = await caches.open(API_CACHE);
+      cache.put(request, networkResponse.clone());
+    }
+    return networkResponse;
+  } catch (error) {
+    console.log('Service Worker: Network request failed, trying cache', request.url, error);
+    const cachedResponse = await caches.match(request);
+    if (cachedResponse) {
+      return cachedResponse;
+    }
+    
+    if (request.mode === 'navigate') {
+      return caches.match('/') || new Response('Offline', { status: 503 });
+    }
+    
+    return new Response('Offline', { status: 503 });
+  }
+}
+
+// Stale-while-revalidate strategy for dynamic content
+async function staleWhileRevalidate(request) {
+  const cachedResponse = await caches.match(request);
+  
+  const fetchPromise = fetch(request).then(networkResponse => {
+    if (networkResponse.ok) {
+      const cache = caches.open(DYNAMIC_CACHE);
+      cache.then(c => c.put(request, networkResponse.clone()));
+    }
+    return networkResponse;
+  }).catch(() => cachedResponse);
+  
+  return cachedResponse || fetchPromise;
+}
+
+// Determine cache strategy based on request
+function getCacheStrategy(request) {
+  const url = new URL(request.url);
+  
+  // Static assets - cache first
+  if (url.pathname.includes('.js') || 
+      url.pathname.includes('.css') || 
+      url.pathname.includes('.png') || 
+      url.pathname.includes('.jpg') || 
+      url.pathname.includes('.svg') ||
+      url.pathname.includes('.ico')) {
+    return CACHE_STRATEGIES.CACHE_FIRST;
+  }
+  
+  // API calls - network first
+  if (url.pathname.includes('/api/') || url.hostname !== location.hostname) {
+    return CACHE_STRATEGIES.NETWORK_FIRST;
+  }
+  
+  // HTML pages - stale while revalidate
+  return CACHE_STRATEGIES.STALE_WHILE_REVALIDATE;
+}
 
 // Helper functions
 function shouldCache(url) {

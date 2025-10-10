@@ -6,10 +6,14 @@
   "background_color": "#ffffff",
   "theme_color": "#3b82f6",
   "description": "A Progressive Web App for monitoring smart water tank levels with real-time WebSocket connectivity",
-  "orientation": "portrait",
+  "orientation": "portrait-primary",
   "scope": "/smart-tank-pwa/",
   "lang": "en",
   "categories": ["utilities", "productivity"],
+  "prefer_related_applications": false,
+  "edge_side_panel": {
+    "preferred_width": 400
+  },
   "icons": [
     {
       "src": "/smart-tank-pwa/icon.svg",

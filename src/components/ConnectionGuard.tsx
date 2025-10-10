@@ -32,6 +32,16 @@ export const ConnectionGuard: React.FC<ConnectionGuardProps> = ({ children }) =>
   const maxConnectionAttempts = 3;
   const maxAutoReconnectAttempts = 5;
 
+  // Cleanup function to stop background reconnection
+  const stopBackgroundReconnection = useCallback(() => {
+    if (backgroundReconnectTimeout) {
+      console.log('ConnectionGuard: Stopping background reconnection');
+      clearTimeout(backgroundReconnectTimeout);
+      setBackgroundReconnectTimeout(null);
+    }
+    setIsBackgroundReconnecting(false);
+  }, [backgroundReconnectTimeout]);
+
   const handleScanForDevices = useCallback(async () => {
     setIsScanning(true);
     setLastError(null);
@@ -116,7 +126,7 @@ export const ConnectionGuard: React.FC<ConnectionGuardProps> = ({ children }) =>
       setConnectionStatus(`Connection failed: ${appState.error}`);
       setIsConnecting(false);
     }
-  }, [isConnected, appState.error, isFirstConnection]);
+  }, [isConnected, appState.error, isFirstConnection, stopBackgroundReconnection]);
 
   // Auto-reconnection function
   const handleAutoReconnect = useCallback(async () => {
@@ -153,16 +163,6 @@ export const ConnectionGuard: React.FC<ConnectionGuardProps> = ({ children }) =>
       setIsAutoReconnecting(false);
     }, delay);
   }, [connect, autoReconnectAttempts, isAutoReconnecting]);
-
-  // Cleanup function to stop background reconnection
-  const stopBackgroundReconnection = useCallback(() => {
-    if (backgroundReconnectTimeout) {
-      console.log('ConnectionGuard: Stopping background reconnection');
-      clearTimeout(backgroundReconnectTimeout);
-      setBackgroundReconnectTimeout(null);
-    }
-    setIsBackgroundReconnecting(false);
-  }, [backgroundReconnectTimeout]);
 
   // Background reconnection function
   const startBackgroundReconnection = useCallback(() => {

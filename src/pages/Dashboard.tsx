@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWebSocket } from '../context/useWebSocket';
 import { StatusCard } from '../components/StatusCard';
 import { TankLevelCard } from '../components/TankLevelCard';
+import { AnimatedCard, FadeIn, SlideIn } from '../components/AnimatedCard';
 import { Settings, Wifi, WifiOff, RefreshCw, Loader2, WifiIcon } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
@@ -20,7 +21,7 @@ export const Dashboard: React.FC = () => {
   });
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const handleSyncData = async () => {
+  const handleSyncData = useCallback(async () => {
     if (!isConnected) return;
     
     setIsRefreshing(true);
@@ -39,10 +40,10 @@ export const Dashboard: React.FC = () => {
     setTimeout(() => {
       setIsRefreshing(false);
     }, 1000);
-  };
+  }, [isConnected, sendMessage]);
 
   // Auto-sync functionality
-  const startAutoSync = () => {
+  const startAutoSync = useCallback(() => {
     if (syncIntervalRef.current) {
       clearInterval(syncIntervalRef.current);
     }
@@ -52,16 +53,16 @@ export const Dashboard: React.FC = () => {
         handleSyncData();
       }, syncInterval);
     }
-  };
+  }, [isConnected, syncInterval, handleSyncData]);
 
-  const stopAutoSync = () => {
+  const stopAutoSync = useCallback(() => {
     if (syncIntervalRef.current) {
       clearInterval(syncIntervalRef.current);
       syncIntervalRef.current = null;
     }
-  };
+  }, []);
 
-  const updateSyncInterval = (newInterval: number) => {
+  const updateSyncInterval = useCallback((newInterval: number) => {
     setSyncInterval(newInterval);
     localStorage.setItem('dashboardSyncInterval', newInterval.toString());
     
@@ -69,7 +70,7 @@ export const Dashboard: React.FC = () => {
     if (isConnected) {
       startAutoSync();
     }
-  };
+  }, [isConnected, startAutoSync]);
 
   // Connection handling functions
   const handleConnect = async () => {
@@ -112,7 +113,7 @@ export const Dashboard: React.FC = () => {
     return () => {
       stopAutoSync();
     };
-  }, [isConnected, syncInterval]);
+  }, [isConnected, syncInterval, startAutoSync, stopAutoSync]);
 
   // Listen for sync interval changes from Settings page
   useEffect(() => {
@@ -126,7 +127,7 @@ export const Dashboard: React.FC = () => {
     return () => {
       window.removeEventListener('syncIntervalChanged', handleSyncIntervalChange as EventListener);
     };
-  }, []);
+  }, [updateSyncInterval]);
 
   // Listen for reconnection status updates from ConnectionGuard
   useEffect(() => {
@@ -264,23 +265,27 @@ export const Dashboard: React.FC = () => {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
         {/* Status Card */}
-        <div className="mb-8">
-          <StatusCard
-            connected={appState.systemStatus.connected}
-            lastUpdated={appState.systemStatus.lastUpdated}
-            runtime={appState.systemStatus.runtime}
-            motorStatus={appState.systemStatus.motorStatus === 'ON' ? 'ON' : 'OFF'}
-            motor1Status={appState.systemStatus.motor1Status}
-            motor2Status={appState.systemStatus.motor2Status}
-            motor1Enabled={appState.systemStatus.motor1Enabled}
-            motor2Enabled={appState.systemStatus.motor2Enabled}
-            motorConfig={appState.systemStatus.motorConfig}
-            mode={appState.systemStatus.mode === 'Auto Mode' ? 'auto' : 'manual'}
-            autoModeReasons={appState.systemStatus.autoModeReasons ? [appState.systemStatus.autoModeReasons] : []}
-            autoModeReasonMotor1={appState.systemStatus.autoModeReasonMotor1}
-            autoModeReasonMotor2={appState.systemStatus.autoModeReasonMotor2}
-          />
-        </div>
+        <FadeIn delay={100}>
+          <div className="mb-8">
+            <AnimatedCard direction="up" delay={100}>
+              <StatusCard
+                connected={appState.systemStatus.connected}
+                lastUpdated={appState.systemStatus.lastUpdated}
+                runtime={appState.systemStatus.runtime}
+                motorStatus={appState.systemStatus.motorStatus === 'ON' ? 'ON' : 'OFF'}
+                motor1Status={appState.systemStatus.motor1Status}
+                motor2Status={appState.systemStatus.motor2Status}
+                motor1Enabled={appState.systemStatus.motor1Enabled}
+                motor2Enabled={appState.systemStatus.motor2Enabled}
+                motorConfig={appState.systemStatus.motorConfig}
+                mode={appState.systemStatus.mode === 'Auto Mode' ? 'auto' : 'manual'}
+                autoModeReasons={appState.systemStatus.autoModeReasons ? [appState.systemStatus.autoModeReasons] : []}
+                autoModeReasonMotor1={appState.systemStatus.autoModeReasonMotor1}
+                autoModeReasonMotor2={appState.systemStatus.autoModeReasonMotor2}
+              />
+            </AnimatedCard>
+          </div>
+        </FadeIn>
 
         {/* Tank Monitoring */}
         <div className="mb-8">
@@ -325,22 +330,26 @@ export const Dashboard: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Tank A - Show only if sensors are enabled */}
             {(appState.systemSettings.sensors.upperTankA || appState.systemSettings.sensors.lowerTankA) && (
-              <TankLevelCard
-                tankName="Tank A"
-                upperLevel={appState.tankData.tankA.upper}
-                lowerLevel={appState.tankData.tankA.lower}
-                isActive={appState.systemSettings.sensors.upperTankA || appState.systemSettings.sensors.lowerTankA}
-              />
+              <AnimatedCard direction="left" delay={200}>
+                <TankLevelCard
+                  tankName="Tank A"
+                  upperLevel={appState.tankData.tankA.upper}
+                  lowerLevel={appState.tankData.tankA.lower}
+                  isActive={appState.systemSettings.sensors.upperTankA || appState.systemSettings.sensors.lowerTankA}
+                />
+              </AnimatedCard>
             )}
             
             {/* Tank B - Show only if sensors are enabled */}
             {(appState.systemSettings.sensors.upperTankB || appState.systemSettings.sensors.lowerTankB) && (
-              <TankLevelCard
-                tankName="Tank B"
-                upperLevel={appState.tankData.tankB.upper}
-                lowerLevel={appState.tankData.tankB.lower}
-                isActive={appState.systemSettings.sensors.upperTankB || appState.systemSettings.sensors.lowerTankB}
-              />
+              <AnimatedCard direction="right" delay={300}>
+                <TankLevelCard
+                  tankName="Tank B"
+                  upperLevel={appState.tankData.tankB.upper}
+                  lowerLevel={appState.tankData.tankB.lower}
+                  isActive={appState.systemSettings.sensors.upperTankB || appState.systemSettings.sensors.lowerTankB}
+                />
+              </AnimatedCard>
             )}
             
             {/* Show message if no tanks are enabled */}
@@ -372,7 +381,9 @@ export const Dashboard: React.FC = () => {
 
 
         {/* Motor Control */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+        <SlideIn direction="up" delay={400}>
+          <AnimatedCard direction="up" delay={400}>
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
           <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
             Motor Control
           </h3>
@@ -557,7 +568,9 @@ export const Dashboard: React.FC = () => {
               </div>
             </div>
           </div>
-        </div>
+            </div>
+          </AnimatedCard>
+        </SlideIn>
 
 
 

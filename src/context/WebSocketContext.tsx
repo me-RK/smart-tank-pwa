@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import type { WebSocketMessage, AppState } from '../types';
 import { initialAppState } from './WebSocketUtils';
 import { WebSocketContext } from './WebSocketContextDefinition';
@@ -21,7 +21,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         
         // Handle v3.0 message types
         switch (message.type) {
-          case 'homeData':
+          case 'homeData': {
             // v3.0 Home data response
             newState.systemStatus = {
               ...prevState.systemStatus,
@@ -68,8 +68,9 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             newState.error = null;
             setReconnectAttempts(0);
             break;
+          }
             
-          case 'settingData':
+          case 'settingData': {
             // v3.0 Settings data response
             const mode = message.systemMode || 'Manual Mode';
             
@@ -153,8 +154,9 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             newState.error = null;
             setReconnectAttempts(0);
             break;
+          }
             
-          case 'motorState':
+          case 'motorState': {
             // v3.0 Motor state update
             if (message.motor === 1) {
               newState.systemStatus = {
@@ -174,8 +176,9 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             newState.isConnected = true;
             setReconnectAttempts(0);
             break;
+          }
             
-          case 'sensorData':
+          case 'sensorData': {
             // v3.0 Sensor data response
             newState.tankData = {
               ...prevState.tankData,
@@ -192,21 +195,24 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             newState.error = null;
             setReconnectAttempts(0);
             break;
+          }
             
           case 'configUpdate':
-          case 'wifiConfigUpdate':
+          case 'wifiConfigUpdate': {
             // Configuration update acknowledgment
             newState.isConnected = true;
             newState.error = null;
             setReconnectAttempts(0);
             break;
+          }
             
-          case 'systemReset':
+          case 'systemReset': {
             // System reset acknowledgment
             newState.isConnected = false;
             break;
+          }
             
-          default:
+          default: {
             // Handle legacy message types for backward compatibility
         if (message.MSV !== undefined && message.RTV === undefined && message.SM === undefined) {
               // Legacy motor status acknowledgment
@@ -247,13 +253,13 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               newState.isConnected = true;
               newState.error = null;
               setReconnectAttempts(0);
-            } else {
+            }
           }
         }
         
         return newState;
       });
-    } catch (error) {
+    } catch {
       setAppState((prev: AppState) => ({ ...prev, error: 'Failed to parse ESP32 message' }));
     }
   }, []);
@@ -277,7 +283,6 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send('getHomeData');
         ws.send('getSettingData');
-      } else {
       }
     }, 1000);
 
@@ -514,7 +519,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             ws.send('getSettingData');
         }
         
-      } catch (error) {
+      } catch {
         setAppState((prev: AppState) => ({ 
           ...prev, 
           error: 'Failed to send message to server'
@@ -548,14 +553,15 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, []); // Remove dependencies to prevent re-triggering
 
 
-  const value: WebSocketContextType = {
+  // Memoize the context value to prevent unnecessary re-renders
+  const value: WebSocketContextType = useMemo(() => ({
     appState,
     sendMessage,
     connect,
     disconnect,
     isConnected: appState.isConnected,
     error: appState.error
-  };
+  }), [appState, sendMessage, connect, disconnect]);
 
   return (
     <WebSocketContext.Provider value={value}>

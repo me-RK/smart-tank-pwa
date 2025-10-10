@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { Droplets } from 'lucide-react';
 
 interface TankLevelCardProps {
@@ -9,7 +9,7 @@ interface TankLevelCardProps {
   className?: string;
 }
 
-export const TankLevelCard: React.FC<TankLevelCardProps> = ({
+export const TankLevelCard: React.FC<TankLevelCardProps> = memo(({
   tankName,
   upperLevel,
   lowerLevel,
@@ -112,4 +112,4 @@ export const TankLevelCard: React.FC<TankLevelCardProps> = ({
       </div>
     </div>
   );
-};
+});
