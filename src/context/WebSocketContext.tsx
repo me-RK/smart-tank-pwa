@@ -278,20 +278,15 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setReconnectInterval(null);
     }
     
-    // Request initial data from ESP32 using old firmware protocol
-    setTimeout(() => {
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send('getHomeData');
-        ws.send('getSettingData');
-      }
-    }, 1000);
+    // Note: Initial data loading is now handled by DataLoader component
+    // This ensures proper loading sequence and user feedback
 
-    // Set up periodic data refresh (every 2 seconds)
+    // Set up periodic data refresh (every 5 seconds) - reduced frequency
     const refreshInterval = setInterval(() => {
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send('getHomeData');
       }
-    }, 2000);
+    }, 5000);
 
     // Clean up interval on disconnect
     return () => {

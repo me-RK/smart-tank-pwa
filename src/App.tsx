@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { Suspense, lazy } from 'react';
 import { WebSocketProvider } from './context/WebSocketContext';
 import { ConnectionGuard } from './components/ConnectionGuard';
+import { DataLoader } from './components/DataLoader';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { NotificationProvider } from './components/NotificationSystem';
@@ -19,13 +20,15 @@ function App() {
           <Router basename="/smart-tank-pwa">
             <div className="App">
               <ConnectionGuard>
-                <Suspense fallback={<LoadingSpinner />}>
-                  <Routes>
-                    <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                    <Route path="/dashboard" element={<Dashboard />} />
-                    <Route path="/settings" element={<Settings />} />
-                  </Routes>
-                </Suspense>
+                <DataLoader>
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <Routes>
+                      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                      <Route path="/dashboard" element={<Dashboard />} />
+                      <Route path="/settings" element={<Settings />} />
+                    </Routes>
+                  </Suspense>
+                </DataLoader>
               </ConnectionGuard>
             </div>
           </Router>

@@ -19,13 +19,8 @@ export const Settings: React.FC = () => {
     setHasChanges(false);
   }, [appState.systemSettings]);
 
-  // Request settings data when Settings page opens
-  useEffect(() => {
-    if (isConnected) {
-      console.log('📡 Requesting settings data from ESP32...');
-      sendMessage({ type: 'getSettingData' });
-    }
-  }, [isConnected, sendMessage]);
+  // Note: Initial settings data is now loaded by DataLoader component
+  // This ensures consistent data loading across the app
 
   // Check for changes
   useEffect(() => {
