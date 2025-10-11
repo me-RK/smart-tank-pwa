@@ -6,6 +6,7 @@ import { StatusCard } from '../components/StatusCard';
 import { IndividualTankCard } from '../components/IndividualTankCard';
 import { AnimatedCard, FadeIn, SlideIn } from '../components/AnimatedCard';
 import { ThemeToggle } from '../components/ThemeToggle';
+import { PWAInstallButton } from '../components/PWAInstallButton';
 import { Settings, Wifi, WifiOff, RefreshCw, Loader2, WifiIcon } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
@@ -232,6 +233,9 @@ export const Dashboard: React.FC = () => {
 
               {/* Theme Toggle */}
               <ThemeToggle />
+
+              {/* PWA Install Button */}
+              <PWAInstallButton />
 
               {/* Settings Button */}
               <button

@@ -6,6 +6,7 @@ import { useTheme } from '../context/ThemeContext';
 import { ToggleSwitch } from '../components/ToggleSwitch';
 import { SensorCheckbox } from '../components/SensorCheckbox';
 import { ThemeToggle } from '../components/ThemeToggle';
+import { PWAInstallButton } from '../components/PWAInstallButton';
 import { ArrowLeft, Save, RotateCcw, AlertCircle, CheckCircle, Wifi, Settings as SettingsIcon, Monitor, Palette } from 'lucide-react';
 
 export const Settings: React.FC = () => {
@@ -153,6 +154,7 @@ export const Settings: React.FC = () => {
                 </span>
               )}
               <ThemeToggle />
+              <PWAInstallButton />
               <button
                 onClick={handleSave}
                 disabled={!hasChanges || isSaving || !isConnected}

@@ -7,6 +7,7 @@ import { DataLoader } from './components/DataLoader';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { NotificationProvider } from './components/NotificationSystem';
+import { PWANotificationSystem } from './components/PWANotificationSystem';
 import './App.css';
 
 // Lazy load pages for better performance
@@ -32,6 +33,7 @@ function App() {
                     </Suspense>
                   </DataLoader>
                 </ConnectionGuard>
+                <PWANotificationSystem />
               </div>
             </Router>
           </WebSocketProvider>

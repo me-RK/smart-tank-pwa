@@ -1,0 +1,11 @@
+<svg width="1125" height="2436" viewBox="0 0 1125 2436" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="splashGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f0f9ff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#e0f2fe;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <rect width="1125" height="2436" fill="url(#splashGrad)"/>
+  <circle cx="562.5" cy="1218" r="112.5" fill="#3b82f6"/>
+  <text x="50%" y="50%" font-family="Arial, sans-serif" font-size="90" font-weight="bold" text-anchor="middle" dy="0.35em" fill="white">WT</text>
+</svg>

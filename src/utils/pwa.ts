@@ -12,12 +12,28 @@ export const registerServiceWorker = async (): Promise<ServiceWorkerRegistration
         if (newWorker) {
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              // New content is available, prompt user to refresh
-              if (confirm('New version available! Refresh to update?')) {
-                window.location.reload();
-              }
+              // New content is available, notify main thread
+              const event = new CustomEvent('sw-update-available', {
+                detail: { registration, newWorker }
+              });
+              window.dispatchEvent(event);
+              
+              // Also send message to service worker
+              navigator.serviceWorker.controller.postMessage({
+                type: 'SW_UPDATE_AVAILABLE'
+              });
             }
           });
+        }
+      });
+      
+      // Handle service worker messages
+      navigator.serviceWorker.addEventListener('message', (event) => {
+        if (event.data && event.data.type === 'SW_UPDATE_AVAILABLE') {
+          const customEvent = new CustomEvent('sw-update-available', {
+            detail: { registration }
+          });
+          window.dispatchEvent(customEvent);
         }
       });
       
