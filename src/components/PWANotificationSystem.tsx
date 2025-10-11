@@ -23,6 +23,34 @@ interface NotificationState {
 export const PWANotificationSystem: React.FC<PWANotificationSystemProps> = ({ className = '' }) => {
   const [notifications, setNotifications] = useState<NotificationState[]>([]);
 
+  const removeNotification = (id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
+  const addNotification = useCallback((notification: NotificationState) => {
+    setNotifications(prev => {
+      // Remove existing notification with same id
+      const filtered = prev.filter(n => n.id !== notification.id);
+      return [...filtered, notification];
+    });
+
+    // Auto-hide if specified
+    if (notification.autoHide && notification.duration) {
+      setTimeout(() => {
+        removeNotification(notification.id);
+      }, notification.duration);
+    }
+
+    // Show browser notification if permission granted
+    if (notification.type === 'connection' || notification.type === 'offline') {
+      showNotification(notification.title, {
+        body: notification.message,
+        icon: '/icon-192.png',
+        badge: '/icon-192.png'
+      });
+    }
+  }, []);
+
   useEffect(() => {
     // Network status monitoring
     const handleOnline = () => {
@@ -113,34 +141,6 @@ export const PWANotificationSystem: React.FC<PWANotificationSystemProps> = ({ cl
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, [addNotification]);
-
-  const addNotification = useCallback((notification: NotificationState) => {
-    setNotifications(prev => {
-      // Remove existing notification with same id
-      const filtered = prev.filter(n => n.id !== notification.id);
-      return [...filtered, notification];
-    });
-
-    // Auto-hide if specified
-    if (notification.autoHide && notification.duration) {
-      setTimeout(() => {
-        removeNotification(notification.id);
-      }, notification.duration);
-    }
-
-    // Show browser notification if permission granted
-    if (notification.type === 'connection' || notification.type === 'offline') {
-      showNotification(notification.title, {
-        body: notification.message,
-        icon: '/icon-192.png',
-        badge: '/icon-192.png'
-      });
-    }
-  }, []);
-
-  const removeNotification = (id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
-  };
 
   const getNotificationIcon = (type: NotificationState['type']) => {
     switch (type) {
