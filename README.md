@@ -2,11 +2,35 @@
 
 A modern, minimalistic React TypeScript Progressive Web App for monitoring and controlling smart water tank systems with real-time WebSocket connectivity.
 
+> **🏠 Designed for Local Network Use**: This PWA is intended to run locally on your network to connect to your ESP32 device. It should NOT be deployed to HTTPS hosting services like GitHub Pages.
+
+## 🚀 Quick Start
+
+### **Run Locally (Recommended)**
+```bash
+# Install dependencies
+npm install
+
+# Start local development server
+npm run dev
+
+# Access the app
+# Local: http://localhost:3000/smart-tank-pwa/
+# Network: http://YOUR_COMPUTER_IP:3000/smart-tank-pwa/
+```
+
+### **Connect to ESP32**
+1. Enter your ESP32 IP address (e.g., `192.168.1.100`)
+2. Click "Connect"
+3. Install as PWA for offline use
+
+> **📖 For detailed setup instructions, see [LOCAL_DEPLOYMENT_GUIDE.md](./LOCAL_DEPLOYMENT_GUIDE.md)**
+
 ## 🚀 Features
 
 ### Core Functionality
 - **Real-time Dashboard**: Live monitoring of tank levels, motor status, and system health
-- **WebSocket Integration**: Real-time communication with tank systems via `ws://host:1337`
+- **WebSocket Integration**: Real-time communication with ESP32 devices via `ws://host:81`
 - **Dual Tank Support**: Monitor both Tank A and Tank B with upper/lower level tracking
 - **System Modes**: Auto and Manual control modes with intelligent switching
 - **Settings Management**: Comprehensive configuration for sensors, dimensions, and thresholds

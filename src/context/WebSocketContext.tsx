@@ -452,29 +452,50 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       
       // Check if we're on HTTPS and provide appropriate protocol
       const isHttps = window.location.protocol === 'https:';
-      const wsUrl = isHttps ? `wss://${host}:81` : `ws://${host}:81`;
+      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const isLocalNetwork = host.startsWith('192.168.') || host.startsWith('10.') || host.startsWith('172.');
       
+      // For local network use, we should always use HTTP WebSocket
+      // The PWA should be served locally, not from HTTPS GitHub Pages
+      let wsUrl: string;
       
-      // If on HTTPS and trying to connect to local network, show helpful error
-      if (isHttps && (host.startsWith('192.168.') || host.startsWith('10.') || host.startsWith('172.'))) {
+      if (isHttps && !isLocalhost) {
+        // PWA is being served from HTTPS (GitHub Pages) - this is not the intended use case
+        // Show error and guide user to run locally
         setAppState((prev: AppState) => ({ 
           ...prev, 
-          error: 'HTTPS Mixed Content: Cannot connect to local network from HTTPS site. Please use HTTP or local development server.',
+          error: 'This PWA is designed to run locally on your network. Please run "npm run dev" and access via http://localhost:3000/smart-tank-pwa/ to connect to your ESP32 device.',
           isConnected: false
         }));
         return;
+      } else {
+        // Local development or HTTP context - use WS (this is the intended use case)
+        wsUrl = `ws://${host}:81`;
       }
+      
+      console.log(`PWA: Connecting to ${wsUrl} (HTTPS: ${isHttps}, Localhost: ${isLocalhost}, Local Network: ${isLocalNetwork})`);
       
       
       const newWs = new WebSocket(wsUrl);
       
       newWs.onopen = handleOpen;
       newWs.onclose = (event: CloseEvent) => {
+        let errorMessage = null;
+        
+        if (event.code !== 1000) {
+          // Check if this is a WSS connection failure on HTTPS
+          if (isHttps && !isLocalhost && isLocalNetwork && wsUrl.startsWith('wss://')) {
+            errorMessage = `HTTPS Mixed Content: ESP32 doesn't support secure WebSocket (WSS). Please configure ESP32 for HTTPS or use local development server.`;
+          } else {
+            errorMessage = `Connection lost (code: ${event.code})`;
+          }
+        }
+        
         setAppState((prev: AppState) => ({ 
           ...prev, 
           isConnected: false,
           systemStatus: { ...prev.systemStatus, connected: false },
-          error: event.code !== 1000 ? `Connection lost (code: ${event.code})` : null
+          error: errorMessage
         }));
         
         // Let ConnectionGuard handle reconnection logic

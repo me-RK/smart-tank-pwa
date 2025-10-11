@@ -4,6 +4,7 @@ import { ConnectionModal } from './ConnectionModal';
 import { TroubleshootingGuide } from './TroubleshootingGuide';
 import { NetworkInfo } from './NetworkInfo';
 import { DeviceNotFoundScreen } from './DeviceNotFoundScreen';
+import { HTTPSConnectionHelp } from './HTTPSConnectionHelp';
 import { Wifi, WifiOff, AlertTriangle, RefreshCw, Settings, HelpCircle, Info } from 'lucide-react';
 import { testConnection, discoverEsp32Devices } from '../utils/connectionTest';
 
@@ -18,6 +19,7 @@ export const ConnectionGuard: React.FC<ConnectionGuardProps> = ({ children }) =>
   const [discoveredDevices, setDiscoveredDevices] = useState<string[]>([]);
   const [connectionAttempts, setConnectionAttempts] = useState(0);
   const [lastError, setLastError] = useState<string | null>(null);
+  const [showHTTPSHelp, setShowHTTPSHelp] = useState(false);
   const [showTroubleshooting, setShowTroubleshooting] = useState(false);
   const [showNetworkInfo, setShowNetworkInfo] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -420,8 +422,18 @@ export const ConnectionGuard: React.FC<ConnectionGuardProps> = ({ children }) =>
               <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 mb-4">
                 <div className="flex items-start space-x-2">
                   <AlertTriangle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
-                  <div className="text-sm text-red-700 dark:text-red-300">
-                    {appState.error}
+                  <div className="flex-1">
+                    <div className="text-sm text-red-700 dark:text-red-300">
+                      {appState.error}
+                    </div>
+                    {appState.error.includes('HTTPS Mixed Content') && (
+                      <button
+                        onClick={() => setShowHTTPSHelp(true)}
+                        className="mt-2 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline"
+                      >
+                        Learn how to fix this issue →
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -659,6 +671,12 @@ export const ConnectionGuard: React.FC<ConnectionGuardProps> = ({ children }) =>
             return false;
           }
         }}
+      />
+      
+      {/* HTTPS Connection Help Modal */}
+      <HTTPSConnectionHelp
+        isVisible={showHTTPSHelp}
+        onClose={() => setShowHTTPSHelp(false)}
       />
     </>
   );

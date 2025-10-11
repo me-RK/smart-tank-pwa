@@ -14,6 +14,7 @@ export interface ConnectionTestResult {
     timestamp: string;
     responseTime?: number;
     mixedContent?: boolean;
+    localUseOnly?: boolean;
   };
 }
 
@@ -25,28 +26,36 @@ export const testConnection = async (host: string, port: number = 81): Promise<C
   
   // Check if we're on HTTPS and provide appropriate protocol
   const isHttps = window.location.protocol === 'https:';
-  const wsUrl = isHttps ? `wss://${host}:${port}` : `ws://${host}:${port}`;
+  const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  const isLocalNetwork = host.startsWith('192.168.') || host.startsWith('10.') || host.startsWith('172.');
   
-  console.log(`Testing connection to ${wsUrl}...`);
+  // For local network use, we should always use HTTP WebSocket
+  // The PWA should be served locally, not from HTTPS GitHub Pages
+  let wsUrl: string;
   
-  // If on HTTPS and trying to connect to local network, provide helpful error
-  if (isHttps && (host.startsWith('192.168.') || host.startsWith('10.') || host.startsWith('172.'))) {
-    console.log(`⚠️ HTTPS detected - Local network connections may be blocked by Mixed Content policy`);
+  if (isHttps && !isLocalhost) {
+    // PWA is being served from HTTPS (GitHub Pages) - this is not the intended use case
+    console.log(`❌ ${host}:${port} - PWA is served from HTTPS, but designed for local use`);
     return new Promise((resolve) => {
       resolve({
         success: false,
-        error: 'HTTPS Mixed Content: Cannot connect to local network from HTTPS site. Try accessing via HTTP or use local development server.',
+        error: 'This PWA is designed to run locally on your network. Please run "npm run dev" and access via http://localhost:3000/smart-tank-pwa/ to connect to your ESP32 device.',
         details: {
           host,
           port,
           protocol: 'WebSocket',
           timestamp: new Date().toISOString(),
           responseTime: Date.now() - startTime,
-          mixedContent: true
+          localUseOnly: true
         }
       });
     });
+  } else {
+    // Local development or HTTP context - use WS (this is the intended use case)
+    wsUrl = `ws://${host}:${port}`;
   }
+  
+  console.log(`Testing connection to ${wsUrl}... (HTTPS: ${isHttps}, Localhost: ${isLocalhost}, Local Network: ${isLocalNetwork})`);
   
   return new Promise((resolve) => {
     const timeout = setTimeout(() => {
@@ -86,15 +95,23 @@ export const testConnection = async (host: string, port: number = 81): Promise<C
       ws.onerror = (error) => {
         console.log(`❌ ${host}:${port} - WebSocket connection failed:`, error);
         clearTimeout(timeout);
+        
+        // Check if this is a WSS connection failure on HTTPS
+        let errorMessage = 'WebSocket connection failed';
+        if (isHttps && !isLocalhost && isLocalNetwork && wsUrl.startsWith('wss://')) {
+          errorMessage = 'HTTPS Mixed Content: ESP32 doesn\'t support secure WebSocket (WSS). Please configure ESP32 for HTTPS or use local development server.';
+        }
+        
         resolve({
           success: false,
-          error: 'WebSocket connection failed',
+          error: errorMessage,
           details: {
             host,
             port,
             protocol: 'WebSocket',
             timestamp: new Date().toISOString(),
-            responseTime: Date.now() - startTime
+            responseTime: Date.now() - startTime,
+            mixedContent: isHttps && !isLocalhost && isLocalNetwork
           }
         });
       };
@@ -102,9 +119,16 @@ export const testConnection = async (host: string, port: number = 81): Promise<C
       ws.onclose = (event) => {
         if (event.code !== 1000) {
           clearTimeout(timeout);
+          
+          // Check if this is a WSS connection failure on HTTPS
+          let errorMessage = `Connection closed with code ${event.code}`;
+          if (isHttps && !isLocalhost && isLocalNetwork && wsUrl.startsWith('wss://')) {
+            errorMessage = 'HTTPS Mixed Content: ESP32 doesn\'t support secure WebSocket (WSS). Please configure ESP32 for HTTPS or use local development server.';
+          }
+          
           resolve({
             success: false,
-            error: `Connection closed with code ${event.code}`,
+            error: errorMessage,
             details: {
               host,
               port,

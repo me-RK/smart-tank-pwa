@@ -22,6 +22,8 @@ interface PWADebugInfo {
   pathname: string;
   beforeInstallPromptSupported: boolean;
   appInstalledSupported: boolean;
+  isHttps: boolean;
+  isLocalhost: boolean;
 }
 
 export const PWADebugInfo: React.FC = () => {
@@ -46,6 +48,8 @@ export const PWADebugInfo: React.FC = () => {
     pathname: '',
     beforeInstallPromptSupported: false,
     appInstalledSupported: false,
+    isHttps: false,
+    isLocalhost: false,
   });
 
   useEffect(() => {
@@ -84,6 +88,10 @@ export const PWADebugInfo: React.FC = () => {
         // PWA events
         beforeInstallPromptSupported: 'onbeforeinstallprompt' in window,
         appInstalledSupported: 'onappinstalled' in window,
+        
+        // Connection context
+        isHttps: location.protocol === 'https:',
+        isLocalhost: location.hostname === 'localhost' || location.hostname === '127.0.0.1',
       };
 
       // Check service worker registration
@@ -211,6 +219,33 @@ export const PWADebugInfo: React.FC = () => {
               <span className={getStatusColor(debugInfo.appInstalledSupported)}>
                 appinstalled
               </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Connection Context */}
+        <div className="space-y-2">
+          <h4 className="font-medium text-gray-700 dark:text-gray-300">Connection Context</h4>
+          <div className="space-y-1 text-sm">
+            <div className="flex items-center space-x-2">
+              {getStatusIcon(debugInfo.isHttps)}
+              <span className={getStatusColor(debugInfo.isHttps)}>
+                HTTPS Protocol
+              </span>
+            </div>
+            <div className="flex items-center space-x-2">
+              {getStatusIcon(debugInfo.isLocalhost)}
+              <span className={getStatusColor(debugInfo.isLocalhost)}>
+                Localhost
+              </span>
+            </div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">
+              {debugInfo.isHttps && !debugInfo.isLocalhost ? 
+                '⚠️ HTTPS + Remote: May have mixed content issues with local ESP32' :
+                debugInfo.isHttps && debugInfo.isLocalhost ?
+                '✅ HTTPS + Localhost: Should work with local ESP32' :
+                '✅ HTTP: Should work with local ESP32'
+              }
             </div>
           </div>
         </div>
