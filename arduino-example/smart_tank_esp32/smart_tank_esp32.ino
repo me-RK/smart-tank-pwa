@@ -36,10 +36,21 @@
  #define RXD2 17
  #define TXD2 16
  
- // WiFi credentials (will be loaded from NVS)
- String ssid = "Smart Water Tank v3.0";
- String password = "12345678";
- String wifiMode = "AP";
+// WiFi credentials (will be loaded from NVS)
+String ssid = "Smart Water Tank v3.0";
+String password = "12345678";
+String wifiMode = "AP";
+
+// WiFi connection state tracking
+bool wifiConnected = false;
+bool wifiReconnectEnabled = true;
+unsigned long lastWifiAttempt = 0;
+unsigned long wifiReconnectInterval = 30000; // 30 seconds
+int wifiConnectionAttempts = 0;
+const int maxWifiAttempts = 5;
+bool wifiCredentialsValid = false;
+String lastConnectionError = "";
+unsigned long lastWifiEvent = 0;
  
 // Network configuration
 uint8_t SIP0 = 192, SIP1 = 168, SIP2 = 1, SIP3 = 1;
@@ -210,6 +221,17 @@ void handleConfigurationUpdate(JsonDocument& doc);
 void handleWiFiConfigUpdate(JsonDocument& doc);
 String getWiFiStatusString(wl_status_t status);
 
+// Enhanced WiFi functions
+void clearWiFiCredentials();
+void validateWiFiCredentials();
+void resetWiFiStack();
+void attemptWiFiConnection();
+void handleWiFiDisconnection();
+void startFallbackAP();
+void logWiFiEvent(WiFiEvent_t event);
+bool isWiFiCredentialsCorrupted();
+void performWiFiDiagnostics();
+
 // Water level calculation functions
 float calculateWaterLevelPercentage(uint32_t sensorReadingMm, float fullDistanceCm, float emptyDistanceCm, float sensorOffsetCm);
 bool validateSensorReading(uint32_t sensorReadingMm);
@@ -379,6 +401,287 @@ String getWiFiStatusString(wl_status_t status) {
     case WL_DISCONNECTED: return "DISCONNECTED";
     default: return "UNKNOWN";
   }
+}
+
+// Enhanced WiFi Functions for Robust Connectivity
+
+void logWiFiEvent(WiFiEvent_t event) {
+  lastWifiEvent = millis();
+  String eventStr = "";
+  
+  switch (event) {
+    case ARDUINO_EVENT_WIFI_STA_START:
+      eventStr = "STA_START";
+      Serial.println("WiFi: Station mode started");
+      break;
+    case ARDUINO_EVENT_WIFI_STA_STOP:
+      eventStr = "STA_STOP";
+      Serial.println("WiFi: Station mode stopped");
+      break;
+    case ARDUINO_EVENT_WIFI_STA_CONNECTED:
+      eventStr = "STA_CONNECTED";
+      Serial.println("WiFi: Connected to network");
+      break;
+    case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
+      eventStr = "STA_DISCONNECTED";
+      Serial.println("WiFi: Disconnected from network");
+      wifiConnected = false;
+      handleWiFiDisconnection();
+      break;
+    case ARDUINO_EVENT_WIFI_STA_AUTHMODE_CHANGE:
+      eventStr = "STA_AUTHMODE_CHANGE";
+      Serial.println("WiFi: Authentication mode changed");
+      break;
+    case ARDUINO_EVENT_WIFI_STA_GOT_IP:
+      eventStr = "STA_GOT_IP";
+      Serial.println("WiFi: Got IP address");
+      wifiConnected = true;
+      wifiConnectionAttempts = 0;
+      lastConnectionError = "";
+      break;
+    case ARDUINO_EVENT_WIFI_STA_LOST_IP:
+      eventStr = "STA_LOST_IP";
+      Serial.println("WiFi: Lost IP address");
+      wifiConnected = false;
+      break;
+    case ARDUINO_EVENT_WIFI_AP_START:
+      eventStr = "AP_START";
+      Serial.println("WiFi: Access Point started");
+      break;
+    case ARDUINO_EVENT_WIFI_AP_STOP:
+      eventStr = "AP_STOP";
+      Serial.println("WiFi: Access Point stopped");
+      break;
+    case ARDUINO_EVENT_WIFI_AP_STACONNECTED:
+      eventStr = "AP_STACONNECTED";
+      Serial.println("WiFi: Station connected to AP");
+      break;
+    case ARDUINO_EVENT_WIFI_AP_STADISCONNECTED:
+      eventStr = "AP_STADISCONNECTED";
+      Serial.println("WiFi: Station disconnected from AP");
+      break;
+    case ARDUINO_EVENT_WIFI_AP_PROBEREQRECVED:
+      eventStr = "AP_PROBEREQRECVED";
+      break;
+    default:
+      eventStr = "UNKNOWN_" + String(event);
+      Serial.printf("WiFi: Unknown event %d\n", event);
+      break;
+  }
+  
+  Serial.printf("WiFi Event: %s (ID: %d) at %lu ms\n", eventStr.c_str(), event, lastWifiEvent);
+}
+
+bool isWiFiCredentialsCorrupted() {
+  // Check for common signs of corrupted credentials
+  if (ssid.length() == 0 || ssid.length() > 32) {
+    Serial.println("WiFi: SSID appears corrupted (invalid length)");
+    return true;
+  }
+  
+  if (password.length() > 63) {
+    Serial.println("WiFi: Password appears corrupted (too long)");
+    return true;
+  }
+  
+  // Check for null characters or invalid characters
+  for (int i = 0; i < ssid.length(); i++) {
+    if (ssid[i] == 0 || ssid[i] < 32 || ssid[i] > 126) {
+      Serial.println("WiFi: SSID contains invalid characters");
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+void clearWiFiCredentials() {
+  Serial.println("WiFi: Clearing potentially corrupted credentials...");
+  
+  // Clear NVS WiFi credentials
+  configs.begin("configData", RW_MODE);
+  configs.remove("SSID");
+  configs.remove("PASS");
+  configs.remove("WIFIMode");
+  configs.end();
+  
+  // Reset to default values
+  ssid = "Smart Water Tank v3.0";
+  password = "12345678";
+  wifiMode = "AP";
+  wifiCredentialsValid = false;
+  
+  Serial.println("WiFi: Credentials cleared and reset to defaults");
+}
+
+void validateWiFiCredentials() {
+  Serial.println("WiFi: Validating stored credentials...");
+  
+  if (isWiFiCredentialsCorrupted()) {
+    Serial.println("WiFi: Credentials appear corrupted, clearing...");
+    clearWiFiCredentials();
+    return;
+  }
+  
+  // Additional validation
+  if (wifiMode != "STA" && wifiMode != "AP") {
+    Serial.println("WiFi: Invalid mode, resetting to AP");
+    wifiMode = "AP";
+  }
+  
+  wifiCredentialsValid = true;
+  Serial.println("WiFi: Credentials validated successfully");
+}
+
+void resetWiFiStack() {
+  Serial.println("WiFi: Performing complete WiFi stack reset...");
+  
+  // Disconnect and stop WiFi
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
+  delay(1000);
+  
+  // Clear any persistent WiFi config
+  WiFi.persistent(false);
+  
+  // Restart WiFi
+  WiFi.mode(WIFI_STA);
+  delay(500);
+  
+  Serial.println("WiFi: Stack reset completed");
+}
+
+void performWiFiDiagnostics() {
+  Serial.println("\n=== WiFi Diagnostics ===");
+  Serial.printf("SSID: '%s' (length: %d)\n", ssid.c_str(), ssid.length());
+  Serial.printf("Password: [%d chars]\n", password.length());
+  Serial.printf("Mode: %s\n", wifiMode.c_str());
+  Serial.printf("IP Config: %s\n", ipConfigType.c_str());
+  Serial.printf("Connected: %s\n", wifiConnected ? "YES" : "NO");
+  Serial.printf("Status: %s\n", getWiFiStatusString(WiFi.status()).c_str());
+  Serial.printf("RSSI: %d dBm\n", WiFi.RSSI());
+  Serial.printf("MAC: %s\n", WiFi.macAddress().c_str());
+  Serial.printf("Connection Attempts: %d/%d\n", wifiConnectionAttempts, maxWifiAttempts);
+  Serial.printf("Last Error: %s\n", lastConnectionError.c_str());
+  Serial.printf("Auto Reconnect: %s\n", wifiReconnectEnabled ? "ENABLED" : "DISABLED");
+  Serial.println("=======================\n");
+}
+
+void handleWiFiDisconnection() {
+  Serial.println("WiFi: Handling disconnection...");
+  
+  if (wifiReconnectEnabled && wifiMode == "STA") {
+    wifiConnectionAttempts++;
+    
+    if (wifiConnectionAttempts <= maxWifiAttempts) {
+      Serial.printf("WiFi: Attempting reconnection %d/%d\n", wifiConnectionAttempts, maxWifiAttempts);
+      lastWifiAttempt = millis();
+      
+      // Wait before retry
+      delay(2000);
+      attemptWiFiConnection();
+    } else {
+      Serial.println("WiFi: Max reconnection attempts reached, starting fallback AP");
+      startFallbackAP();
+    }
+  }
+}
+
+void attemptWiFiConnection() {
+  if (wifiMode != "STA") {
+    Serial.println("WiFi: Not in STA mode, skipping connection attempt");
+    return;
+  }
+  
+  Serial.printf("WiFi: Attempting connection to '%s'...\n", ssid.c_str());
+  
+  // Reset WiFi stack if too many attempts
+  if (wifiConnectionAttempts > 2) {
+    resetWiFiStack();
+  }
+  
+  // Set WiFi mode and options
+  WiFi.mode(WIFI_STA);
+  WiFi.setAutoReconnect(true);
+  WiFi.persistent(false);
+  
+  // Set hostname
+  String hostname = "SWT_Node_" + WiFi.macAddress().substring(12);
+  hostname.replace(":", "");
+  WiFi.setHostname(hostname.c_str());
+  
+  // Configure static IP if needed
+  if (ipConfigType == "static") {
+    IPAddress local_ip(SIP0, SIP1, SIP2, SIP3);
+    IPAddress gateway(GW0, GW1, GW2, GW3);
+    IPAddress subnet(SNM0, SNM1, SNM2, SNM3);
+    IPAddress primaryDNS(PDNS0, PDNS1, PDNS2, PDNS3);
+    IPAddress secondaryDNS(SDNS0, SDNS1, SDNS2, SDNS3);
+    
+    if (!WiFi.config(local_ip, gateway, subnet, primaryDNS, secondaryDNS)) {
+      Serial.println("WiFi: Static IP configuration failed");
+      lastConnectionError = "Static IP config failed";
+    }
+  }
+  
+  // Begin connection
+  WiFi.begin(ssid.c_str(), password.c_str());
+  
+  // Monitor connection with timeout
+  int attempts = 0;
+  const int maxAttempts = 20; // 10 seconds
+  
+  while (WiFi.status() != WL_CONNECTED && attempts < maxAttempts) {
+    delay(500);
+    attempts++;
+    
+    wl_status_t status = WiFi.status();
+    Serial.printf("WiFi: [%2d] %s (RSSI: %d)\n", 
+                  attempts, 
+                  getWiFiStatusString(status).c_str(),
+                  WiFi.RSSI());
+    
+    if (status == WL_CONNECT_FAILED) {
+      lastConnectionError = "Connection failed - wrong password";
+      break;
+    } else if (status == WL_NO_SSID_AVAIL) {
+      lastConnectionError = "SSID not available";
+      break;
+    }
+  }
+  
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("WiFi: Connection successful!");
+    wifiConnected = true;
+    wifiConnectionAttempts = 0;
+    lastConnectionError = "";
+    performWiFiDiagnostics();
+  } else {
+    Serial.printf("WiFi: Connection failed after %d attempts\n", attempts);
+    lastConnectionError = "Connection timeout";
+  }
+}
+
+void startFallbackAP() {
+  Serial.println("WiFi: Starting fallback Access Point...");
+  
+  WiFi.mode(WIFI_AP);
+  
+  String fallbackSSID = "SWT_FALLBACK_" + WiFi.macAddress().substring(12);
+  fallbackSSID.replace(":", "");
+  
+  WiFi.softAP(fallbackSSID.c_str(), "12345678");
+  
+  IPAddress fallbackIP(192, 168, 4, 1);
+  IPAddress fallbackGW(192, 168, 4, 1);
+  IPAddress fallbackSN(255, 255, 255, 0);
+  WiFi.softAPConfig(fallbackIP, fallbackGW, fallbackSN);
+  
+  Serial.printf("WiFi: Fallback AP started - SSID: %s, IP: %s\n", 
+                fallbackSSID.c_str(), WiFi.softAPIP().toString().c_str());
+  
+  faultOn();
+  doBuzzerAlert(3, 500, 200);
 }
  
  // Motor control functions
@@ -1609,27 +1912,9 @@ void countTaskFunction(void *pvParameters) {
   }
 }
  
- // WiFi event handler
+ // Enhanced WiFi event handler
  void OnWiFiEvent(WiFiEvent_t event) {
-   switch (event) {
-     case WIFI_EVENT_STA_CONNECTED:
-       Serial.println("WiFi: Connected to network");
-       break;
-     case WIFI_EVENT_AP_START:
-       Serial.println("WiFi: Access Point started");
-       break;
-     case WIFI_EVENT_AP_STACONNECTED:
-       Serial.println("WiFi: Station connected to AP");
-       break;
-     case WIFI_EVENT_AP_STADISCONNECTED:
-       Serial.println("WiFi: Station disconnected from AP");
-       break;
-     case WIFI_EVENT_STA_DISCONNECTED:
-       Serial.println("WiFi: Disconnected from network");
-       break;
-     default:
-       break;
-   }
+   logWiFiEvent(event);
  }
  
  // HTTP server handlers
@@ -1807,57 +2092,57 @@ void countTaskFunction(void *pvParameters) {
      configs.begin("configData", RO_MODE);
    }
  
-   // Load configuration from NVS
-   Serial.println("Loading configuration from NVS...");
-   
-   systemMode = configs.getString("systemMode", "Manual Mode");
-   motorConfiguration = configs.getString("motorConfig", "SINGLE_TANK_SINGLE_MOTOR");
-   dualMotorSyncMode = configs.getString("dualMotorSync", "SIMULTANEOUS");
-   
-   motor1Enabled = configs.getBool("motor1Enable", true);
-   motor2Enabled = configs.getBool("motor2Enable", false);
-   
-   minAutoValueA = configs.getFloat("autoMinA", 50.0);
-   maxAutoValueA = configs.getFloat("autoMaxA", 90.0);
-   lowerTankLowerThresholdLevelA = configs.getFloat("lowerThreshA", 30.0);
-   lowerTankOverFlowThresholdLevelA = configs.getFloat("lowerOvrflwA", 95.0);
-   
-   minAutoValueB = configs.getFloat("autoMinB", 50.0);
-   maxAutoValueB = configs.getFloat("autoMaxB", 90.0);
-   lowerTankLowerThresholdLevelB = configs.getFloat("lowerThreshB", 30.0);
-   lowerTankOverFlowThresholdLevelB = configs.getFloat("lowerOvrflwB", 95.0);
-   
-   upperTankOverFlowLock = configs.getBool("UTOFL", true);
-   lowerTankOverFlowLock = configs.getBool("LTOFL", true);
-   syncBothTank = configs.getBool("SBT", true);
-   buzzerAlert = configs.getBool("BA", true);
-   tankAAutomationEnabled = configs.getBool("tankAAutoEn", true);
-   tankBAutomationEnabled = configs.getBool("tankBAutoEn", false);
-   
-  // Tank dimensions
-  lowerTankHeightA = configs.getFloat("LTHA", 75.0);
-  lowerWaterFullHeightA = configs.getFloat("LTWFHA", 5.0);   // Distance when full
-  lowerWaterEmptyHeightA = configs.getFloat("LTWEHA", 70.0); // Distance when empty
-  upperTankHeightA = configs.getFloat("UTHA", 75.0);
-  upperWaterFullHeightA = configs.getFloat("UTWFHA", 5.0);   // Distance when full
-  upperWaterEmptyHeightA = configs.getFloat("UTWEHA", 70.0); // Distance when empty
+  // Load configuration from NVS
+  Serial.println("Loading configuration from NVS...");
   
-  lowerTankHeightB = configs.getFloat("LTHB", 75.0);
-  lowerWaterFullHeightB = configs.getFloat("LTWFHB", 5.0);   // Distance when full
-  lowerWaterEmptyHeightB = configs.getFloat("LTWEHB", 70.0); // Distance when empty
-  upperTankHeightB = configs.getFloat("UTHB", 75.0);
-  upperWaterFullHeightB = configs.getFloat("UTWFHB", 5.0);   // Distance when full
-  upperWaterEmptyHeightB = configs.getFloat("UTWEHB", 70.0); // Distance when empty
+  systemMode = configs.getString("systemMode", "Manual Mode");
+  motorConfiguration = configs.getString("motorConfig", "SINGLE_TANK_SINGLE_MOTOR");
+  dualMotorSyncMode = configs.getString("dualMotorSync", "SIMULTANEOUS");
   
-  // Sensor calibration offsets
-  upperSensorOffsetA = configs.getFloat("USOA", 0.0);
-  lowerSensorOffsetA = configs.getFloat("LSOA", 0.0);
-  upperSensorOffsetB = configs.getFloat("USOB", 0.0);
-  lowerSensorOffsetB = configs.getFloat("LSOB", 0.0);
+  motor1Enabled = configs.getBool("motor1Enable", true);
+  motor2Enabled = configs.getBool("motor2Enable", false);
   
-  // Sensor validation limits
-  minSensorReading = configs.getFloat("minSensor", 20.0);
-  maxSensorReading = configs.getFloat("maxSensor", 4000.0);
+  minAutoValueA = configs.getFloat("autoMinA", 50.0);
+  maxAutoValueA = configs.getFloat("autoMaxA", 90.0);
+  lowerTankLowerThresholdLevelA = configs.getFloat("lowerThreshA", 30.0);
+  lowerTankOverFlowThresholdLevelA = configs.getFloat("lowerOvrflwA", 95.0);
+  
+  minAutoValueB = configs.getFloat("autoMinB", 50.0);
+  maxAutoValueB = configs.getFloat("autoMaxB", 90.0);
+  lowerTankLowerThresholdLevelB = configs.getFloat("lowerThreshB", 30.0);
+  lowerTankOverFlowThresholdLevelB = configs.getFloat("lowerOvrflwB", 95.0);
+  
+  upperTankOverFlowLock = configs.getBool("UTOFL", true);
+  lowerTankOverFlowLock = configs.getBool("LTOFL", true);
+  syncBothTank = configs.getBool("SBT", true);
+  buzzerAlert = configs.getBool("BA", true);
+  tankAAutomationEnabled = configs.getBool("tankAAutoEn", true);
+  tankBAutomationEnabled = configs.getBool("tankBAutoEn", false);
+  
+ // Tank dimensions
+ lowerTankHeightA = configs.getFloat("LTHA", 75.0);
+ lowerWaterFullHeightA = configs.getFloat("LTWFHA", 5.0);   // Distance when full
+ lowerWaterEmptyHeightA = configs.getFloat("LTWEHA", 70.0); // Distance when empty
+ upperTankHeightA = configs.getFloat("UTHA", 75.0);
+ upperWaterFullHeightA = configs.getFloat("UTWFHA", 5.0);   // Distance when full
+ upperWaterEmptyHeightA = configs.getFloat("UTWEHA", 70.0); // Distance when empty
+ 
+ lowerTankHeightB = configs.getFloat("LTHB", 75.0);
+ lowerWaterFullHeightB = configs.getFloat("LTWFHB", 5.0);   // Distance when full
+ lowerWaterEmptyHeightB = configs.getFloat("LTWEHB", 70.0); // Distance when empty
+ upperTankHeightB = configs.getFloat("UTHB", 75.0);
+ upperWaterFullHeightB = configs.getFloat("UTWFHB", 5.0);   // Distance when full
+ upperWaterEmptyHeightB = configs.getFloat("UTWEHB", 70.0); // Distance when empty
+ 
+ // Sensor calibration offsets
+ upperSensorOffsetA = configs.getFloat("USOA", 0.0);
+ lowerSensorOffsetA = configs.getFloat("LSOA", 0.0);
+ upperSensorOffsetB = configs.getFloat("USOB", 0.0);
+ lowerSensorOffsetB = configs.getFloat("LSOB", 0.0);
+ 
+ // Sensor validation limits
+ minSensorReading = configs.getFloat("minSensor", 20.0);
+ maxSensorReading = configs.getFloat("maxSensor", 4000.0);
    
    // Sensor enables
    lowerSensorAEnable = configs.getBool("LAE", false);
@@ -1865,7 +2150,7 @@ void countTaskFunction(void *pvParameters) {
    upperSensorAEnable = configs.getBool("UAE", false);
    upperSensorBEnable = configs.getBool("UBE", false);
    
-  // WiFi configuration
+  // WiFi configuration with enhanced validation
   ssid = configs.getString("SSID", "Smart Water Tank v3.0");
   password = configs.getString("PASS", "12345678");
   wifiMode = configs.getString("WIFIMode", "AP");
@@ -1873,6 +2158,25 @@ void countTaskFunction(void *pvParameters) {
   
   Serial.printf("Loaded from NVS - SSID: '%s', Password length: %d, Mode: %s, IPConfig: %s\n", 
                 ssid.c_str(), password.length(), wifiMode.c_str(), ipConfigType.c_str());
+  
+  // Enhanced WiFi credential validation and corruption detection
+  Serial.println("\n=== WiFi Credential Validation ===");
+  validateWiFiCredentials();
+  
+  // Check for firmware flash detection (new boot after re-flash)
+  bool isNewFirmwareBoot = configs.getBool("firmwareFlashDetected", false);
+  if (!isNewFirmwareBoot) {
+    Serial.println("WiFi: New firmware detected - performing credential validation");
+    configs.begin("configData", RW_MODE);
+    configs.putBool("firmwareFlashDetected", true);
+    configs.end();
+    
+    // Perform additional validation after firmware flash
+    if (isWiFiCredentialsCorrupted()) {
+      Serial.println("WiFi: Credentials corrupted after firmware flash - clearing");
+      clearWiFiCredentials();
+    }
+  }
    
    SIP0 = configs.getUShort("SIP0", 192);
    SIP1 = configs.getUShort("SIP1", 168);
@@ -1989,181 +2293,109 @@ void countTaskFunction(void *pvParameters) {
  
    doBuzzerAlert(2, 500, 500);
  
-  // Normal Operation Mode Setup
-  Serial.println("\n=== NORMAL OPERATION MODE ===");
+  // Enhanced WiFi Setup with Robust Connection Logic
+  Serial.println("\n=== ENHANCED WIFI SETUP ===");
   Serial.printf("WiFi Configuration - Mode: %s, SSID: '%s', IP Type: %s\n", 
     wifiMode.c_str(), ssid.c_str(), ipConfigType.c_str());
 
-// Disconnect any existing connections
-WiFi.disconnect(true);
-delay(100);
+  // Register WiFi event handler for enhanced monitoring
+  WiFi.onEvent(OnWiFiEvent);
+  
+  // Perform WiFi diagnostics before connection
+  performWiFiDiagnostics();
 
-if (wifiMode == "STA") {
-Serial.println("\n>>> Starting Station Mode <<<");
+  // Disconnect any existing connections and reset stack
+  Serial.println("WiFi: Disconnecting and resetting stack...");
+  WiFi.disconnect(true);
+  delay(1000);
+  
+  // Reset WiFi stack to clear any corrupted state
+  resetWiFiStack();
 
-// Set WiFi mode first
-WiFi.mode(WIFI_STA);
-WiFi.setAutoReconnect(true);
-WiFi.persistent(false); // Don't save WiFi config to flash
+  if (wifiMode == "STA") {
+    Serial.println("\n>>> Starting Enhanced Station Mode <<<");
+    
+    // Perform network scan for diagnostics
+    Serial.println("\nScanning for networks...");
+    int n = WiFi.scanNetworks();
+    Serial.printf("Found %d networks:\n", n);
 
-String hostname = "SWT_Node_" + WiFi.macAddress().substring(12);
-hostname.replace(":", "");
-WiFi.setHostname(hostname.c_str());
-Serial.printf("Hostname: %s\n", hostname.c_str());
+    bool targetFound = false;
+    int targetRSSI = 0;
+    int targetChannel = 0;
 
-// Configure static IP ONLY if enabled
-if (ipConfigType == "static") {
-Serial.println("Applying static IP configuration...");
-IPAddress local_ip(SIP0, SIP1, SIP2, SIP3);
-IPAddress gateway(GW0, GW1, GW2, GW3);
-IPAddress subnet(SNM0, SNM1, SNM2, SNM3);
-IPAddress primaryDNS(PDNS0, PDNS1, PDNS2, PDNS3);
-IPAddress secondaryDNS(SDNS0, SDNS1, SDNS2, SDNS3);
+    for (int i = 0; i < n; i++) {
+      String currentSSID = WiFi.SSID(i);
+      int currentRSSI = WiFi.RSSI(i);
 
-if (!WiFi.config(local_ip, gateway, subnet, primaryDNS, secondaryDNS)) {
-Serial.println("WARNING: Static IP configuration failed!");
-} else {
-Serial.printf("Static IP set: %d.%d.%d.%d\n", SIP0, SIP1, SIP2, SIP3);
-}
-} else {
-Serial.println("Using DHCP for dynamic IP...");
-// Ensure no static config is applied
-WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE);
-}
+      Serial.printf("  %d: %s (RSSI: %d dBm, Ch: %d) %s\n", 
+              i + 1, 
+              currentSSID.c_str(), 
+              currentRSSI,
+              WiFi.channel(i),
+              WiFi.encryptionType(i) == WIFI_AUTH_OPEN ? "[OPEN]" : "[SECURED]");
 
-// Scan for target network
-Serial.println("\nScanning for networks...");
-int n = WiFi.scanNetworks();
-Serial.printf("Found %d networks:\n", n);
+      if (currentSSID == ssid) {
+        targetFound = true;
+        targetRSSI = currentRSSI;
+        targetChannel = WiFi.channel(i);
+        Serial.printf(">>> TARGET NETWORK FOUND: '%s' at %d dBm on channel %d <<<\n", 
+              ssid.c_str(), targetRSSI, targetChannel);
+      }
+    }
 
-bool targetFound = false;
-int targetRSSI = 0;
-int targetChannel = 0;
+    if (!targetFound) {
+      Serial.printf("\n!!! WARNING: Target network '%s' NOT FOUND in scan !!!\n", ssid.c_str());
+      Serial.println("Possible reasons:");
+      Serial.println("  1. SSID is incorrect (case-sensitive)");
+      Serial.println("  2. Router is out of range");
+      Serial.println("  3. Router is on 5GHz band (ESP32 only supports 2.4GHz)");
+      Serial.println("  4. Router is powered off");
+      Serial.println("\nProceeding with connection attempt anyway...");
+    }
 
-for (int i = 0; i < n; i++) {
-String currentSSID = WiFi.SSID(i);
-int currentRSSI = WiFi.RSSI(i);
+    // Attempt connection using enhanced function
+    attemptWiFiConnection();
 
-Serial.printf("  %d: %s (RSSI: %d dBm, Ch: %d) %s\n", 
-        i + 1, 
-        currentSSID.c_str(), 
-        currentRSSI,
-        WiFi.channel(i),
-        WiFi.encryptionType(i) == WIFI_AUTH_OPEN ? "[OPEN]" : "[SECURED]");
+    // Check final connection status
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.println("\n========================================");
+      Serial.println("    ✓ WiFi Connected Successfully!");
+      Serial.println("========================================");
+      Serial.printf("SSID:       %s\n", WiFi.SSID().c_str());
+      Serial.printf("IP Address: %s\n", WiFi.localIP().toString().c_str());
+      Serial.printf("Gateway:    %s\n", WiFi.gatewayIP().toString().c_str());
+      Serial.printf("Subnet:     %s\n", WiFi.subnetMask().toString().c_str());
+      Serial.printf("DNS:        %s\n", WiFi.dnsIP().toString().c_str());
+      Serial.printf("MAC:        %s\n", WiFi.macAddress().c_str());
+      Serial.printf("RSSI:       %d dBm\n", WiFi.RSSI());
+      Serial.printf("Channel:    %d\n", WiFi.channel());
+      Serial.println("========================================\n");
 
-if (currentSSID == ssid) {
-targetFound = true;
-targetRSSI = currentRSSI;
-targetChannel = WiFi.channel(i);
-Serial.printf(">>> TARGET NETWORK FOUND: '%s' at %d dBm on channel %d <<<\n", 
-          ssid.c_str(), targetRSSI, targetChannel);
-}
-}
+      faultOff();
+      digitalWrite(statusPin, HIGH);
+      doBuzzerAlert(2, 200, 100);
 
-if (!targetFound) {
-Serial.printf("\n!!! WARNING: Target network '%s' NOT FOUND in scan !!!\n", ssid.c_str());
-Serial.println("Possible reasons:");
-Serial.println("  1. SSID is incorrect (case-sensitive)");
-Serial.println("  2. Router is out of range");
-Serial.println("  3. Router is on 5GHz band (ESP32 only supports 2.4GHz)");
-Serial.println("  4. Router is powered off");
-Serial.println("\nProceeding with connection attempt anyway...");
-}
+    } else {
+      Serial.println("\n========================================");
+      Serial.println("    ✗ WiFi Connection Failed!");
+      Serial.println("========================================");
+      Serial.printf("Final Status: %s (%d)\n", getWiFiStatusString(WiFi.status()).c_str(), WiFi.status());
+      Serial.printf("Connection Attempts: %d/%d\n", wifiConnectionAttempts, maxWifiAttempts);
+      Serial.printf("Last Error: %s\n", lastConnectionError.c_str());
+      Serial.println("\nTroubleshooting steps:");
+      Serial.println("1. Verify SSID is correct (case-sensitive)");
+      Serial.println("2. Verify password is correct");
+      Serial.println("3. Ensure router is on 2.4GHz band");
+      Serial.println("4. Check router security type (WPA2 recommended)");
+      Serial.println("5. Try moving device closer to router");
+      Serial.println("6. Check if MAC filtering is enabled on router");
+      Serial.println("7. Try clearing WiFi credentials and reconfiguring");
+      Serial.println("========================================\n");
 
-// Begin WiFi connection
-Serial.printf("\nConnecting to '%s'...\n", ssid.c_str());
-Serial.printf("Password length: %d characters\n", password.length());
-
-WiFi.begin(ssid.c_str(), password.c_str());
-
-// Connection attempt with detailed status
-int attempts = 0;
-const int maxAttempts = 30; // 15 seconds total
-
-Serial.println("\nConnection progress:");
-while (WiFi.status() != WL_CONNECTED && attempts < maxAttempts) {
-delay(500);
-attempts++;
-
-wl_status_t status = WiFi.status();
-Serial.printf("[%2d] Status: %-20s RSSI: %d dBm\n", 
-        attempts, 
-        getWiFiStatusString(status).c_str(),
-        WiFi.RSSI());
-
-// Visual feedback
-if (attempts % 2 == 0) {
-digitalWrite(statusPin, HIGH);
-} else {
-digitalWrite(statusPin, LOW);
-}
-
-// Check for specific failure conditions
-if (status == WL_CONNECT_FAILED) {
-Serial.println("\n!!! CONNECTION FAILED - Wrong password or router rejected connection !!!");
-break;
-} else if (status == WL_NO_SSID_AVAIL) {
-Serial.println("\n!!! SSID NOT AVAILABLE - Router not responding !!!");
-break;
-}
-}
-
-// Check final connection status
-if (WiFi.status() == WL_CONNECTED) {
-Serial.println("\n========================================");
-Serial.println("    ✓ WiFi Connected Successfully!");
-Serial.println("========================================");
-Serial.printf("SSID:       %s\n", WiFi.SSID().c_str());
-Serial.printf("IP Address: %s\n", WiFi.localIP().toString().c_str());
-Serial.printf("Gateway:    %s\n", WiFi.gatewayIP().toString().c_str());
-Serial.printf("Subnet:     %s\n", WiFi.subnetMask().toString().c_str());
-Serial.printf("DNS:        %s\n", WiFi.dnsIP().toString().c_str());
-Serial.printf("MAC:        %s\n", WiFi.macAddress().c_str());
-Serial.printf("RSSI:       %d dBm\n", WiFi.RSSI());
-Serial.printf("Channel:    %d\n", WiFi.channel());
-Serial.println("========================================\n");
-
-faultOff();
-digitalWrite(statusPin, HIGH);
-doBuzzerAlert(2, 200, 100);
-
-} else {
-Serial.println("\n========================================");
-Serial.println("    ✗ WiFi Connection Failed!");
-Serial.println("========================================");
-Serial.printf("Final Status: %s (%d)\n", getWiFiStatusString(WiFi.status()).c_str(), WiFi.status());
-Serial.printf("Attempts:     %d\n", attempts);
-Serial.println("\nTroubleshooting steps:");
-Serial.println("1. Verify SSID is correct (case-sensitive)");
-Serial.println("2. Verify password is correct");
-Serial.println("3. Ensure router is on 2.4GHz band");
-Serial.println("4. Check router security type (WPA2 recommended)");
-Serial.println("5. Try moving device closer to router");
-Serial.println("6. Check if MAC filtering is enabled on router");
-Serial.println("========================================\n");
-
-// Start fallback AP mode
-Serial.println("Starting FALLBACK Access Point mode...");
-WiFi.mode(WIFI_AP);
-
-String fallbackSSID = "SWT_FALLBACK_" + WiFi.macAddress().substring(12);
-fallbackSSID.replace(":", "");
-
-WiFi.softAP(fallbackSSID.c_str(), "12345678");
-
-IPAddress fallbackIP(192, 168, 4, 1);
-IPAddress fallbackGW(192, 168, 4, 1);
-IPAddress fallbackSN(255, 255, 255, 0);
-WiFi.softAPConfig(fallbackIP, fallbackGW, fallbackSN);
-
-Serial.printf("Fallback AP SSID: %s\n", fallbackSSID.c_str());
-Serial.printf("Fallback Password: 12345678\n");
-Serial.printf("Fallback IP: %s\n", WiFi.softAPIP().toString().c_str());
-Serial.println("Connect to this network to reconfigure WiFi settings\n");
-
-faultOn();
-doBuzzerAlert(3, 500, 200);
-}
+      // Start fallback AP mode
+      startFallbackAP();
+    }
 
 } else if (wifiMode == "AP") {
 Serial.println("\n>>> Starting Access Point Mode <<<");
@@ -2308,10 +2540,34 @@ delay(1000);
    doBuzzerAlert(1, 200, 100);
  }
  
- // Main loop
+ // Main loop with enhanced WiFi monitoring
  void loop() {
    webSocket.loop();
    server.handleClient();
+   
+   // Enhanced WiFi monitoring and reconnection
+   static unsigned long lastWiFiCheck = 0;
+   if (millis() - lastWiFiCheck > 5000) { // Check every 5 seconds
+     lastWiFiCheck = millis();
+     
+     if (wifiMode == "STA" && !wifiConnected) {
+       // Check if we should attempt reconnection
+       if (wifiReconnectEnabled && 
+           (millis() - lastWifiAttempt) > wifiReconnectInterval &&
+           wifiConnectionAttempts < maxWifiAttempts) {
+         
+         Serial.println("WiFi: Attempting scheduled reconnection...");
+         attemptWiFiConnection();
+       }
+     }
+     
+     // Monitor WiFi connection health
+     if (wifiMode == "STA" && WiFi.status() != WL_CONNECTED && wifiConnected) {
+       Serial.println("WiFi: Connection lost, triggering reconnection...");
+       wifiConnected = false;
+       handleWiFiDisconnection();
+     }
+   }
    
    // Watchdog - monitor task health
    static unsigned long lastTaskCheck = 0;

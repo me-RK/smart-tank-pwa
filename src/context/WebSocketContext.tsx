@@ -290,19 +290,9 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     
     // Note: Initial data loading is now handled by DataLoader component
     // This ensures proper loading sequence and user feedback
+    // Periodic data refresh is now handled by individual pages based on their needs
 
-    // Set up periodic data refresh (every 5 seconds) - reduced frequency
-    const refreshInterval = setInterval(() => {
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send('getHomeData');
-      }
-    }, 5000);
-
-    // Clean up interval on disconnect
-    return () => {
-      clearInterval(refreshInterval);
-    };
-  }, [reconnectInterval, ws]);
+  }, [reconnectInterval]);
 
   const handleError = useCallback(() => {
     setAppState((prev: AppState) => ({ 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWebSocket } from '../context/useWebSocket';
+import { usePageData } from '../hooks/usePageData';
 import { ToggleSwitch } from '../components/ToggleSwitch';
 import { SensorCheckbox } from '../components/SensorCheckbox';
 import { ArrowLeft, Save, RotateCcw, AlertCircle, CheckCircle, Wifi, Settings as SettingsIcon, Monitor } from 'lucide-react';
@@ -8,6 +9,7 @@ import { ArrowLeft, Save, RotateCcw, AlertCircle, CheckCircle, Wifi, Settings as
 export const Settings: React.FC = () => {
   const navigate = useNavigate();
   const { appState, sendMessage, isConnected } = useWebSocket();
+  usePageData(); // Initialize page-specific data loading
   const [settings, setSettings] = useState(appState.systemSettings);
   const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -18,9 +20,6 @@ export const Settings: React.FC = () => {
     setSettings(appState.systemSettings);
     setHasChanges(false);
   }, [appState.systemSettings]);
-
-  // Note: Initial settings data is now loaded by DataLoader component
-  // This ensures consistent data loading across the app
 
   // Check for changes
   useEffect(() => {
@@ -98,19 +97,19 @@ export const Settings: React.FC = () => {
         timestamp: new Date().toISOString()
       });
 
-      // Request updated settings data after a short delay
+      // Request updated settings data after a longer delay to ensure update is processed
       setTimeout(() => {
         sendMessage({
           type: 'getSettingData'
         });
-      }, 500);
+      }, 1000);
 
       // Simulate save delay
       setTimeout(() => {
         setIsSaving(false);
         setSaveStatus('success');
         setTimeout(() => setSaveStatus('idle'), 3000);
-      }, 1000);
+      }, 1500);
     } catch {
       setIsSaving(false);
       setSaveStatus('error');

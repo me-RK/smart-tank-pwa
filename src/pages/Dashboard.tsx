@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWebSocket } from '../context/useWebSocket';
+import { usePageData } from '../hooks/usePageData';
 import { StatusCard } from '../components/StatusCard';
 import { TankLevelCard } from '../components/TankLevelCard';
 import { AnimatedCard, FadeIn, SlideIn } from '../components/AnimatedCard';
@@ -9,6 +10,7 @@ import { Settings, Wifi, WifiOff, RefreshCw, Loader2, WifiIcon } from 'lucide-re
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { appState, sendMessage, connect, disconnect, isConnected } = useWebSocket();
+  const { startDashboardSync, stopDashboardSync } = usePageData();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [reconnectionStatus, setReconnectionStatus] = useState<string>('');
@@ -19,21 +21,15 @@ export const Dashboard: React.FC = () => {
     const saved = localStorage.getItem('dashboardSyncInterval');
     return saved ? parseInt(saved, 10) : 5000; // Default 5 seconds
   });
-  const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleSyncData = useCallback(async () => {
     if (!isConnected) return;
     
     setIsRefreshing(true);
     
-    // Send sync request to server using v3.0 protocol
+    // Send sync request to server using v3.0 protocol - only dashboard data
     sendMessage({
       type: 'getHomeData'
-    });
-    
-    // Also request settings data to ensure motor configuration is up to date
-    sendMessage({
-      type: 'getSettingData'
     });
 
     // Simulate refresh delay
@@ -42,35 +38,15 @@ export const Dashboard: React.FC = () => {
     }, 1000);
   }, [isConnected, sendMessage]);
 
-  // Auto-sync functionality
-  const startAutoSync = useCallback(() => {
-    if (syncIntervalRef.current) {
-      clearInterval(syncIntervalRef.current);
-    }
-    
-    if (isConnected && syncInterval > 0) {
-      syncIntervalRef.current = setInterval(() => {
-        handleSyncData();
-      }, syncInterval);
-    }
-  }, [isConnected, syncInterval, handleSyncData]);
-
-  const stopAutoSync = useCallback(() => {
-    if (syncIntervalRef.current) {
-      clearInterval(syncIntervalRef.current);
-      syncIntervalRef.current = null;
-    }
-  }, []);
-
   const updateSyncInterval = useCallback((newInterval: number) => {
     setSyncInterval(newInterval);
     localStorage.setItem('dashboardSyncInterval', newInterval.toString());
     
     // Restart auto-sync with new interval
     if (isConnected) {
-      startAutoSync();
+      startDashboardSync();
     }
-  }, [isConnected, startAutoSync]);
+  }, [isConnected, startDashboardSync]);
 
   // Connection handling functions
   const handleConnect = async () => {
@@ -101,19 +77,19 @@ export const Dashboard: React.FC = () => {
   };
 
 
-  // Effect to manage auto-sync based on connection status
+  // Effect to manage auto-sync based on connection status and sync interval changes
   useEffect(() => {
     if (isConnected) {
-      startAutoSync();
+      startDashboardSync();
     } else {
-      stopAutoSync();
+      stopDashboardSync();
     }
 
     // Cleanup on unmount
     return () => {
-      stopAutoSync();
+      stopDashboardSync();
     };
-  }, [isConnected, syncInterval, startAutoSync, stopAutoSync]);
+  }, [isConnected, syncInterval, startDashboardSync, stopDashboardSync]);
 
   // Listen for sync interval changes from Settings page
   useEffect(() => {
