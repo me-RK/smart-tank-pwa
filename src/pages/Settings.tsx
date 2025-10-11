@@ -111,7 +111,11 @@ export const Settings: React.FC = () => {
       setTimeout(() => {
         setIsSaving(false);
         setSaveStatus('success');
-        setTimeout(() => setSaveStatus('idle'), 3000);
+        setTimeout(() => {
+          setSaveStatus('idle');
+          // Navigate to Dashboard after success message disappears
+          navigate('/dashboard');
+        }, 3000);
       }, 1500);
     } catch {
       setIsSaving(false);
