@@ -29,7 +29,7 @@ export const DataLoader: React.FC<DataLoaderProps> = ({ children }) => {
     },
     {
       id: 'homeData',
-      name: 'Loading System Status',
+      name: 'Loading System Data',
       icon: <Settings className="w-5 h-5" />,
       completed: false
     },
@@ -63,7 +63,7 @@ export const DataLoader: React.FC<DataLoaderProps> = ({ children }) => {
   // Check if all steps are completed (for future use)
   // const allStepsCompleted = loadingSteps.every(step => step.completed);
 
-  // Load data sequence
+  // Load data sequence - Updated to use unified getAllData approach
   const loadData = useCallback(async () => {
     if (!isConnected) {
       setLoadingError('Not connected to ESP32 device');
@@ -80,74 +80,39 @@ export const DataLoader: React.FC<DataLoaderProps> = ({ children }) => {
       setCurrentStep(1);
       await new Promise(resolve => setTimeout(resolve, 500)); // Small delay for UX
 
-      // Step 2: Load home data (system status, motor status, etc.)
+      // Step 2-4: Load all data in one unified request
       updateStep('homeData', false);
-      sendMessage({ type: 'getHomeData' });
-      
-      // Wait for home data response
-      await new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error('Home data request timeout'));
-        }, 5000);
-
-        const checkHomeData = () => {
-          if (appState.systemStatus.connected && appState.systemStatus.lastUpdated) {
-            clearTimeout(timeout);
-            updateStep('homeData', true);
-            resolve(true);
-          } else {
-            setTimeout(checkHomeData, 100);
-          }
-        };
-        checkHomeData();
-      });
-
-      setCurrentStep(2);
-
-      // Step 3: Load settings data
       updateStep('settingsData', false);
-      sendMessage({ type: 'getSettingData' });
-      
-      // Wait for settings data response
-      await new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error('Settings data request timeout'));
-        }, 5000);
-
-        const checkSettingsData = () => {
-          if (appState.systemSettings.mode && appState.systemSettings.sensors) {
-            clearTimeout(timeout);
-            updateStep('settingsData', true);
-            resolve(true);
-          } else {
-            setTimeout(checkSettingsData, 100);
-          }
-        };
-        checkSettingsData();
-      });
-
-      setCurrentStep(3);
-
-      // Step 4: Load sensor data
       updateStep('sensorData', false);
-      sendMessage({ type: 'getSensorData' });
       
-      // Wait for sensor data response
+      // Send unified data request
+      sendMessage({ type: 'getAllData' });
+      
+      // Wait for unified data response
       await new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
-          reject(new Error('Sensor data request timeout'));
-        }, 5000);
+          reject(new Error('Data request timeout'));
+        }, 8000); // Increased timeout for unified request
 
-        const checkSensorData = () => {
-          if (appState.tankData.tankA.upper !== undefined && appState.tankData.tankA.lower !== undefined) {
+        const checkAllData = () => {
+          // Check if we have all the essential data from the unified response
+          if (appState.systemStatus.connected && 
+              appState.systemStatus.lastUpdated &&
+              appState.systemSettings.mode && 
+              appState.systemSettings.sensors &&
+              appState.tankData.tankA.upper !== undefined && 
+              appState.tankData.tankA.lower !== undefined) {
             clearTimeout(timeout);
+            // Mark all steps as completed
+            updateStep('homeData', true);
+            updateStep('settingsData', true);
             updateStep('sensorData', true);
             resolve(true);
           } else {
-            setTimeout(checkSensorData, 100);
+            setTimeout(checkAllData, 100);
           }
         };
-        checkSensorData();
+        checkAllData();
       });
 
       setCurrentStep(4);
@@ -180,12 +145,13 @@ export const DataLoader: React.FC<DataLoaderProps> = ({ children }) => {
     }
   }, [isConnected, sendMessage, appState, updateStep, currentStep, loadingSteps, retryCount, maxRetries, showError]);
 
-  // Start loading when connected
+  // Start loading when connected (only once)
   useEffect(() => {
     if (isConnected && isLoading) {
-      loadData();
+      // Just mark as loaded immediately - let pages handle their own data fetching
+      setIsLoading(false);
     }
-  }, [isConnected, loadData, isLoading]);
+  }, [isConnected, isLoading]);
 
   // Reset loading state when connection is lost
   useEffect(() => {

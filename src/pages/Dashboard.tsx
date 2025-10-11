@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWebSocket } from '../context/useWebSocket';
 import { usePageData } from '../hooks/usePageData';
 import { StatusCard } from '../components/StatusCard';
-import { TankLevelCard } from '../components/TankLevelCard';
+import { IndividualTankCard } from '../components/IndividualTankCard';
 import { AnimatedCard, FadeIn, SlideIn } from '../components/AnimatedCard';
 import { Settings, Wifi, WifiOff, RefreshCw, Loader2, WifiIcon } from 'lucide-react';
 
@@ -11,6 +11,13 @@ export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { appState, sendMessage, connect, disconnect, isConnected } = useWebSocket();
   const { startDashboardSync, stopDashboardSync } = usePageData();
+
+  // Debug logging for tank data and sensor states
+  useEffect(() => {
+    console.log('Dashboard - Tank Data:', appState.tankData);
+    console.log('Dashboard - Sensor States:', appState.systemSettings.sensors);
+    console.log('Dashboard - System Status:', appState.systemStatus);
+  }, [appState.tankData, appState.systemSettings.sensors, appState.systemStatus]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [reconnectionStatus, setReconnectionStatus] = useState<string>('');
@@ -27,9 +34,9 @@ export const Dashboard: React.FC = () => {
     
     setIsRefreshing(true);
     
-    // Send sync request to server using v3.0 protocol - only dashboard data
+    // Send unified data request - gets all necessary data in one call
     sendMessage({
-      type: 'getHomeData'
+      type: 'getAllData'
     });
 
     // Simulate refresh delay
@@ -78,10 +85,11 @@ export const Dashboard: React.FC = () => {
 
 
   // Effect to manage auto-sync based on connection status and sync interval changes
+  // Note: This is now handled by usePageData hook, so we don't need to start/stop here
+  // The usePageData hook will handle page-specific data fetching
   useEffect(() => {
-    if (isConnected) {
-      startDashboardSync();
-    } else {
+    // Only stop dashboard sync when disconnected
+    if (!isConnected) {
       stopDashboardSync();
     }
 
@@ -89,7 +97,7 @@ export const Dashboard: React.FC = () => {
     return () => {
       stopDashboardSync();
     };
-  }, [isConnected, syncInterval, startDashboardSync, stopDashboardSync]);
+  }, [isConnected, stopDashboardSync]);
 
   // Listen for sync interval changes from Settings page
   useEffect(() => {
@@ -303,45 +311,84 @@ export const Dashboard: React.FC = () => {
               </button>
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Tank A - Show only if sensors are enabled */}
-            {(appState.systemSettings.sensors.upperTankA || appState.systemSettings.sensors.lowerTankA) && (
+          
+          {/* Individual Tank Cards - Only show active sensors */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Tank A Upper */}
+            {appState.systemSettings.sensors.upperTankA && (
               <AnimatedCard direction="left" delay={200}>
-                <TankLevelCard
+                <IndividualTankCard
                   tankName="Tank A"
-                  upperLevel={appState.tankData.tankA.upper}
-                  lowerLevel={appState.tankData.tankA.lower}
-                  isActive={appState.systemSettings.sensors.upperTankA || appState.systemSettings.sensors.lowerTankA}
+                  tankType="upper"
+                  level={appState.tankData.tankA.upper}
+                  isActive={appState.systemSettings.sensors.upperTankA}
                 />
               </AnimatedCard>
             )}
             
-            {/* Tank B - Show only if sensors are enabled */}
-            {(appState.systemSettings.sensors.upperTankB || appState.systemSettings.sensors.lowerTankB) && (
+            {/* Tank A Lower */}
+            {appState.systemSettings.sensors.lowerTankA && (
+              <AnimatedCard direction="left" delay={250}>
+                <IndividualTankCard
+                  tankName="Tank A"
+                  tankType="lower"
+                  level={appState.tankData.tankA.lower}
+                  isActive={appState.systemSettings.sensors.lowerTankA}
+                />
+              </AnimatedCard>
+            )}
+            
+            {/* Tank B Upper */}
+            {appState.systemSettings.sensors.upperTankB && (
               <AnimatedCard direction="right" delay={300}>
-                <TankLevelCard
+                <IndividualTankCard
                   tankName="Tank B"
-                  upperLevel={appState.tankData.tankB.upper}
-                  lowerLevel={appState.tankData.tankB.lower}
-                  isActive={appState.systemSettings.sensors.upperTankB || appState.systemSettings.sensors.lowerTankB}
+                  tankType="upper"
+                  level={appState.tankData.tankB.upper}
+                  isActive={appState.systemSettings.sensors.upperTankB}
                 />
               </AnimatedCard>
             )}
             
-            {/* Show message if no tanks are enabled */}
-            {!(appState.systemSettings.sensors.upperTankA || appState.systemSettings.sensors.lowerTankA || 
-               appState.systemSettings.sensors.upperTankB || appState.systemSettings.sensors.lowerTankB) && (
-              <div className="col-span-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 text-center">
-                <div className="text-gray-500 dark:text-gray-400">
-                  <p className="text-sm font-medium mb-2">No Tank Sensors Enabled</p>
-                  <p className="text-xs">
-                    Enable tank sensors in Settings to monitor tank levels
-                  </p>
-                </div>
-              </div>
+            {/* Tank B Lower */}
+            {appState.systemSettings.sensors.lowerTankB && (
+              <AnimatedCard direction="right" delay={350}>
+                <IndividualTankCard
+                  tankName="Tank B"
+                  tankType="lower"
+                  level={appState.tankData.tankB.lower}
+                  isActive={appState.systemSettings.sensors.lowerTankB}
+                />
+              </AnimatedCard>
             )}
           </div>
+          
+          {/* Show message if no tanks are enabled */}
+          {!(appState.systemSettings.sensors.upperTankA || appState.systemSettings.sensors.lowerTankA || 
+             appState.systemSettings.sensors.upperTankB || appState.systemSettings.sensors.lowerTankB) && (
+            <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 text-center">
+              <div className="text-gray-500 dark:text-gray-400">
+                <p className="text-sm font-medium mb-2">No Tank Sensors Enabled</p>
+                <p className="text-xs">
+                  Enable tank sensors in Settings to monitor tank levels
+                </p>
+              </div>
+            </div>
+          )}
         </div>
+
+        {/* Debug Panel - Remove in production */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="mb-6 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+            <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200 mb-2">Debug Info</h3>
+            <div className="text-xs text-yellow-700 dark:text-yellow-300 space-y-1">
+              <div><strong>Sensor States:</strong> {JSON.stringify(appState.systemSettings.sensors)}</div>
+              <div><strong>Tank Data:</strong> {JSON.stringify(appState.tankData)}</div>
+              <div><strong>Connected:</strong> {appState.isConnected ? 'Yes' : 'No'}</div>
+              <div><strong>System Mode:</strong> {appState.systemStatus.mode}</div>
+            </div>
+          </div>
+        )}
 
         {/* Auto Mode Reason Display */}
         {appState.systemStatus.mode === 'Auto Mode' && appState.systemStatus.autoModeReasons && appState.systemStatus.autoModeReasons !== 'NONE' && (

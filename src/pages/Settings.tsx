@@ -97,10 +97,10 @@ export const Settings: React.FC = () => {
         timestamp: new Date().toISOString()
       });
 
-      // Request updated settings data after a longer delay to ensure update is processed
+      // Request updated data after a longer delay to ensure update is processed
       setTimeout(() => {
         sendMessage({
-          type: 'getSettingData'
+          type: 'getAllData'
         });
       }, 1000);
 

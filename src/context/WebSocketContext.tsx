@@ -207,6 +207,128 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             break;
           }
             
+          case 'allData': {
+            // v3.0 Unified data response - combines home, settings, and sensor data
+            console.log('WebSocket - Received allData:', message);
+            const mode = message.systemMode || 'Manual Mode';
+            
+            // Update system status
+            newState.systemStatus = {
+              ...prevState.systemStatus,
+              connected: true,
+              runtime: parseFloat(message.lastUpdate || '0'),
+              mode: mode as 'Auto Mode' | 'Manual Mode',
+              motor1Status: message.motor1State || 'OFF',
+              motor2Status: message.motor2State || 'OFF',
+              motor1Enabled: message.motor1Enabled !== undefined ? message.motor1Enabled : prevState.systemStatus.motor1Enabled,
+              motor2Enabled: message.motor2Enabled !== undefined ? message.motor2Enabled : prevState.systemStatus.motor2Enabled,
+              motorStatus: message.motor1State === 'ON' || message.motor2State === 'ON' ? 'ON' : 'OFF',
+              autoModeReasonMotor1: message.autoReasonMotor1 || 'NONE',
+              autoModeReasonMotor2: message.autoReasonMotor2 || 'NONE',
+              autoModeReasons: message.autoReasonMotor1 || 'NONE',
+              motorConfig: message.motorConfig || 'SINGLE_TANK_SINGLE_MOTOR',
+              lastUpdated: new Date().toISOString()
+            };
+            
+            // Update tank data
+            newState.tankData = {
+              ...prevState.tankData,
+              tankA: {
+                upper: message.upperTankA !== undefined ? message.upperTankA : (message.upperTankAPercent !== undefined ? message.upperTankAPercent : prevState.tankData.tankA.upper),
+                lower: message.lowerTankA !== undefined ? message.lowerTankA : (message.lowerTankAPercent !== undefined ? message.lowerTankAPercent : prevState.tankData.tankA.lower)
+              },
+              tankB: {
+                upper: message.upperTankB !== undefined ? message.upperTankB : (message.upperTankBPercent !== undefined ? message.upperTankBPercent : prevState.tankData.tankB.upper),
+                lower: message.lowerTankB !== undefined ? message.lowerTankB : (message.lowerTankBPercent !== undefined ? message.lowerTankBPercent : prevState.tankData.tankB.lower)
+              }
+            };
+            
+            // Update system settings
+            newState.systemSettings = {
+              ...prevState.systemSettings,
+              mode: mode as 'Auto Mode' | 'Manual Mode',
+              motorSettings: {
+                configuration: message.motorConfig || 'SINGLE_TANK_SINGLE_MOTOR',
+                motor1Enabled: message.motor1Enabled !== undefined ? message.motor1Enabled : prevState.systemSettings.motorSettings.motor1Enabled,
+                motor2Enabled: message.motor2Enabled !== undefined ? message.motor2Enabled : prevState.systemSettings.motorSettings.motor2Enabled,
+                dualMotorSyncMode: message.dualMotorSyncMode || 'SIMULTANEOUS',
+                motorAlternateInterval: 3600000
+              },
+              tankAAutomation: {
+                minAutoValue: message.minAutoValueA || 50,
+                maxAutoValue: message.maxAutoValueA || 90,
+                lowerThreshold: message.lowerThresholdA || 30,
+                lowerOverflow: message.lowerOverflowA || 95,
+                automationEnabled: message.tankAAutomationEnabled !== undefined ? message.tankAAutomationEnabled : prevState.systemSettings.tankAAutomation.automationEnabled
+              },
+              tankBAutomation: {
+                minAutoValue: message.minAutoValueB || 50,
+                maxAutoValue: message.maxAutoValueB || 90,
+                lowerThreshold: message.lowerThresholdB || 30,
+                lowerOverflow: message.lowerOverflowB || 95,
+                automationEnabled: message.tankBAutomationEnabled !== undefined ? message.tankBAutomationEnabled : prevState.systemSettings.tankBAutomation.automationEnabled
+              },
+              autoMode: {
+                minWaterLevel: message.minAutoValueA || 50,
+                maxWaterLevel: message.maxAutoValueA || 90,
+                specialFunctions: {
+                  upperTankOverFlowLock: message.upperTankOverFlowLock !== undefined ? message.upperTankOverFlowLock : prevState.systemSettings.autoMode.specialFunctions.upperTankOverFlowLock,
+                  lowerTankOverFlowLock: message.lowerTankOverFlowLock !== undefined ? message.lowerTankOverFlowLock : prevState.systemSettings.autoMode.specialFunctions.lowerTankOverFlowLock,
+                  syncBothTank: message.syncBothTank !== undefined ? message.syncBothTank : prevState.systemSettings.autoMode.specialFunctions.syncBothTank,
+                  buzzerAlert: message.buzzerAlert !== undefined ? message.buzzerAlert : prevState.systemSettings.autoMode.specialFunctions.buzzerAlert
+                }
+              },
+              sensors: {
+                lowerTankA: message.lowerSensorAEnabled !== undefined ? message.lowerSensorAEnabled : prevState.systemSettings.sensors.lowerTankA,
+                lowerTankB: message.lowerSensorBEnabled !== undefined ? message.lowerSensorBEnabled : prevState.systemSettings.sensors.lowerTankB,
+                upperTankA: message.upperSensorAEnabled !== undefined ? message.upperSensorAEnabled : prevState.systemSettings.sensors.upperTankA,
+                upperTankB: message.upperSensorBEnabled !== undefined ? message.upperSensorBEnabled : prevState.systemSettings.sensors.upperTankB
+              },
+              tankDimensions: {
+                upperTankA: {
+                  height: message.upperTankHeightA || 75,
+                  waterFullHeight: message.upperWaterFullHeightA || 5,
+                  waterEmptyHeight: message.upperWaterEmptyHeightA || 70
+                },
+                upperTankB: {
+                  height: message.upperTankHeightB || 75,
+                  waterFullHeight: message.upperWaterFullHeightB || 5,
+                  waterEmptyHeight: message.upperWaterEmptyHeightB || 70
+                },
+                lowerTankA: {
+                  height: message.lowerTankHeightA || 75,
+                  waterFullHeight: message.lowerWaterFullHeightA || 5,
+                  waterEmptyHeight: message.lowerWaterEmptyHeightA || 70
+                },
+                lowerTankB: {
+                  height: message.lowerTankHeightB || 75,
+                  waterFullHeight: message.lowerWaterFullHeightB || 5,
+                  waterEmptyHeight: message.lowerWaterEmptyHeightB || 70
+                }
+              },
+              sensorCalibration: {
+                upperTankA: message.upperSensorOffsetA || 0,
+                lowerTankA: message.lowerSensorOffsetA || 0,
+                upperTankB: message.upperSensorOffsetB || 0,
+                lowerTankB: message.lowerSensorOffsetB || 0
+              },
+              sensorLimits: {
+                minReading: message.minSensorReading || 20,
+                maxReading: message.maxSensorReading || 4000
+              },
+              macAddress: message.macAddress || prevState.systemSettings.macAddress
+            };
+            
+            newState.isConnected = true;
+            newState.error = null;
+            setReconnectAttempts(0);
+            
+            // Debug logging for sensor states
+            console.log('WebSocket - Updated sensor states:', newState.systemSettings.sensors);
+            console.log('WebSocket - Updated tank data:', newState.tankData);
+            break;
+          }
+            
           case 'configUpdate':
           case 'wifiConfigUpdate': {
             // Configuration update acknowledgment
@@ -394,7 +516,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (ws && ws.readyState === WebSocket.OPEN) {
       try {
         // Handle different message types using v3.0 protocol
-        switch (message.type) {
+        switch (message.type as string) {
           case 'motor1On':
             ws.send('motor1On');
             break;
@@ -496,6 +618,10 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             break;
           case 'getSensorData':
             ws.send('getSensorData');
+            break;
+          case 'getAllData':
+            // Unified request for all data - more efficient than multiple separate requests
+            ws.send('getAllData');
             break;
           case 'getWiFiConfig':
             ws.send('getWiFiConfig');

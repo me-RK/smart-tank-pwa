@@ -71,13 +71,20 @@ String ipConfigType = "static"; // "static" or "dynamic"
  #define RW_MODE false
  #define RO_MODE true
  
- // ESP-NOW structure for remote sensor data
- typedef struct struct_message {
-   bool sensorA;
-   bool sensorB;
-   uint32_t valueA;
-   uint32_t valueB;
- } struct_message;
+// ESP-NOW structure for remote sensor data
+typedef struct struct_message {
+  bool sensorA;
+  bool sensorB;
+  uint32_t valueA;
+  uint32_t valueB;
+} struct_message;
+
+// ESP-NOW ACK message structure for Channel Auto-Discovery
+typedef struct ack_message {
+  uint8_t msgType;    // 0xAA = ACK
+  uint8_t channel;    // Current channel
+  uint32_t timestamp; // Timestamp for debugging
+} ack_message;
  
  // System state variables
  bool systemEnabled = true;
@@ -179,8 +186,15 @@ uint32_t readDelayA = 500;
 uint32_t readDelayB = 500;
 uint8_t clientNumGlobal = 0;
  
- // ESP-NOW data
- struct_message subData;
+// ESP-NOW data
+struct_message subData;
+
+// ESP-NOW Channel Auto-Discovery System
+esp_now_peer_info_t transmitterPeer;
+bool transmitterRegistered = false;
+uint8_t currentChannel = 0;
+uint32_t lastAckSent = 0;
+uint32_t ackCount = 0;
  
  // Task handles
  TaskHandle_t motorControlTaskHandle;
@@ -192,6 +206,7 @@ void doBuzzerAlert(uint8_t count, uint16_t onDelay, uint16_t offDelay);
 void doStatusAlert(uint8_t count, uint16_t onDelay, uint16_t offDelay);
 void doFaultAlert(uint8_t count, uint16_t onDelay, uint16_t offDelay);
 void updateMotorStateInNVS(uint8_t motorNum, bool newState);
+void printChannelAutoDiscoveryStatus();
 void OnWiFiEvent(WiFiEvent_t event);
 void switchMotorON(uint8_t motorNum);
 void switchMotorOFF(uint8_t motorNum);
@@ -288,6 +303,30 @@ void updateWaterLevelCalculations(void);
  
 void buzzerOff(void) {
   digitalWrite(buzzerPin, LOW);
+}
+
+// Channel Auto-Discovery Status Function
+void printChannelAutoDiscoveryStatus() {
+  Serial.println("\n=== CHANNEL AUTO-DISCOVERY STATUS ===");
+  Serial.printf("Transmitter Registered: %s\n", transmitterRegistered ? "YES" : "NO");
+  Serial.printf("Current Channel: %d\n", currentChannel);
+  Serial.printf("Total ACKs Sent: %lu\n", ackCount);
+  if (lastAckSent > 0) {
+    Serial.printf("Last ACK Sent: %lu ms ago\n", millis() - lastAckSent);
+  } else {
+    Serial.println("Last ACK Sent: Never");
+  }
+  
+  if (transmitterRegistered) {
+    Serial.print("Transmitter MAC: ");
+    for (int i = 0; i < 6; i++) {
+      Serial.printf("%02X", transmitterPeer.peer_addr[i]);
+      if (i < 5) Serial.print(":");
+    }
+    Serial.println();
+    Serial.printf("Peer Channel: %d\n", transmitterPeer.channel);
+  }
+  Serial.println("=====================================\n");
 }
 
 // Water level calculation functions
@@ -544,13 +583,12 @@ void resetWiFiStack() {
   // Clear any persistent WiFi config
   WiFi.persistent(false);
   
-  // Restart WiFi
-  WiFi.mode(WIFI_STA);
+  // Restart WiFi - USE APSTA for ESP-NOW compatibility
+  WiFi.mode(WIFI_MODE_APSTA);  // Changed from WIFI_STA
   delay(500);
   
   Serial.println("WiFi: Stack reset completed");
 }
-
 void performWiFiDiagnostics() {
   Serial.println("\n=== WiFi Diagnostics ===");
   Serial.printf("SSID: '%s' (length: %d)\n", ssid.c_str(), ssid.length());
@@ -600,10 +638,10 @@ void attemptWiFiConnection() {
     resetWiFiStack();
   }
   
-  // Set WiFi mode and options
-  WiFi.mode(WIFI_STA);
-  WiFi.setAutoReconnect(true);
-  WiFi.persistent(false);
+// Set WiFi mode and options - USE APSTA for ESP-NOW compatibility
+WiFi.mode(WIFI_MODE_APSTA);  // Changed from WIFI_STA to WIFI_MODE_APSTA
+WiFi.setAutoReconnect(true);
+WiFi.persistent(false);
   
   // Set hostname
   String hostname = "SWT_Node_" + WiFi.macAddress().substring(12);
@@ -1063,16 +1101,67 @@ void readLowTankHeightA() {
    delay(readDelayB);
  }
  
- // ESP-NOW callback function
- void OnDataRecv(const esp_now_recv_info *recv_info, const uint8_t *incomingData, int len) {
-   memcpy(&subData, incomingData, sizeof(subData));
-   
-   Serial.println("=== ESP-NOW Data Received ===");
-   Serial.printf("Bytes: %d\n", len);
-   Serial.printf("Sensor A Active: %d, Value: %u\n", subData.sensorA, subData.valueA);
-   Serial.printf("Sensor B Active: %d, Value: %u\n", subData.sensorB, subData.valueB);
-   Serial.printf("WiFi RSSI: %d dBm\n", WiFi.RSSI());
-   Serial.println("============================");
+// ESP-NOW callback function with Channel Auto-Discovery
+void OnDataRecv(const esp_now_recv_info *recv_info, const uint8_t *incomingData, int len) {
+  memcpy(&subData, incomingData, sizeof(subData));
+  
+  // Get current WiFi channel using Arduino WiFi library
+  currentChannel = WiFi.channel();
+  
+  Serial.print("Bytes received: ");
+  Serial.println(len);
+  Serial.print("From MAC: ");
+  for (int i = 0; i < 6; i++) {
+    Serial.printf("%02X", recv_info->src_addr[i]);
+    if (i < 5) Serial.print(":");
+  }
+  Serial.println();
+  Serial.printf("ESP-NOW data received on channel %d\n", currentChannel);
+  
+  // ===== CHANNEL AUTO-DISCOVERY: SEND ACK BACK TO TRANSMITTER =====
+  if (!transmitterRegistered) {
+    // Register transmitter as peer
+    memcpy(transmitterPeer.peer_addr, recv_info->src_addr, 6);
+    transmitterPeer.channel = currentChannel;  // Use current channel
+    transmitterPeer.encrypt = false;
+    
+    if (esp_now_add_peer(&transmitterPeer) == ESP_OK) {
+      transmitterRegistered = true;
+      Serial.println("Transmitter registered as peer for Channel Auto-Discovery");
+    } else {
+      Serial.println("Failed to register transmitter as peer");
+    }
+  }
+  
+  // Send ACK message back to transmitter
+  if (transmitterRegistered) {
+    ack_message ack;
+    ack.msgType = 0xAA;  // ACK identifier
+    ack.channel = currentChannel;
+    ack.timestamp = millis();
+    
+    esp_err_t result = esp_now_send(recv_info->src_addr, (uint8_t *)&ack, sizeof(ack));
+    if (result == ESP_OK) {
+      ackCount++;
+      lastAckSent = millis();
+      Serial.printf("ACK sent to transmitter on channel %d (Total ACKs: %lu)\n", currentChannel, ackCount);
+    } else {
+      Serial.printf("ACK send failed: %d\n", result);
+    }
+  }
+  // ===== END CHANNEL AUTO-DISCOVERY =====
+  
+  Serial.print("sensorA: ");
+  Serial.println(subData.sensorA);
+  Serial.print("sensorB: ");
+  Serial.println(subData.sensorB);
+  Serial.print("valueA: ");
+  Serial.println(subData.valueA);
+  Serial.print("valueB: ");
+  Serial.println(subData.valueB);
+  Serial.println();
+  Serial.print("Wifi Strength: ");
+  Serial.println(WiFi.RSSI());
    
    // Update sensor enable states if changed
    bool upperSensorAEnableLive = subData.sensorA;
@@ -1136,7 +1225,8 @@ void readLowTankHeightA() {
  
    lastDataReceived = systemUptime; // Update timestamp of last data received
  }
- 
+
+
  // Configuration update handler
  void handleConfigurationUpdate(JsonDocument& doc) {
    configs.begin("configData", RW_MODE);
@@ -1415,6 +1505,22 @@ void readLowTankHeightA() {
      if (newValue != lowerSensorBEnable) {
        lowerSensorBEnable = newValue;
        configs.putBool("LBE", newValue);
+     }
+   }
+   
+   if (doc.containsKey("upperSensorAEnable")) {
+     bool newValue = doc["upperSensorAEnable"];
+     if (newValue != upperSensorAEnable) {
+       upperSensorAEnable = newValue;
+       configs.putBool("UAE", newValue);
+     }
+   }
+   
+   if (doc.containsKey("upperSensorBEnable")) {
+     bool newValue = doc["upperSensorBEnable"];
+     if (newValue != upperSensorBEnable) {
+       upperSensorBEnable = newValue;
+       configs.putBool("UBE", newValue);
      }
    }
    
@@ -1784,6 +1890,93 @@ void handleWiFiConfigUpdate(JsonDocument& doc) {
          webSocket.sendTXT(client_num, jsonString);
          Serial.println("Settings data sent");
          
+       } else if (strcmp((char *)payload, "getAllData") == 0) {
+         // Send unified data response - combines home, settings, and sensor data
+         JsonDocument jsonDoc;
+         jsonDoc["type"] = "allData";
+         
+         // Calculate time since last data received from transmitter
+         unsigned long timeSinceLastData = (lastDataReceived > 0) ? (systemUptime - lastDataReceived) : 0;
+         
+         // System status data (from getHomeData)
+         jsonDoc["lastUpdate"] = String(timeSinceLastData);
+         jsonDoc["systemMode"] = systemMode;
+         jsonDoc["motor1State"] = motor1State ? "ON" : "OFF";
+         jsonDoc["motor2State"] = motor2State ? "ON" : "OFF";
+         jsonDoc["motor1Enabled"] = motor1Enabled;
+         jsonDoc["motor2Enabled"] = motor2Enabled;
+         jsonDoc["motorConfig"] = motorConfiguration;
+         jsonDoc["autoReasonMotor1"] = autoModeReasonMotor1;
+         jsonDoc["autoReasonMotor2"] = autoModeReasonMotor2;
+         
+         // Tank data (from getHomeData)
+         jsonDoc["upperTankA"] = round(upperTankWaterLevelA * 10) / 10.0;
+         jsonDoc["lowerTankA"] = round(lowerTankWaterLevelA * 10) / 10.0;
+         jsonDoc["upperTankB"] = round(upperTankWaterLevelB * 10) / 10.0;
+         jsonDoc["lowerTankB"] = round(lowerTankWaterLevelB * 10) / 10.0;
+         
+         // Sensor enable states (from getHomeData)
+         jsonDoc["upperSensorAEnabled"] = upperSensorAEnable;
+         jsonDoc["lowerSensorAEnabled"] = lowerSensorAEnable;
+         jsonDoc["upperSensorBEnabled"] = upperSensorBEnable;
+         jsonDoc["lowerSensorBEnabled"] = lowerSensorBEnable;
+         
+         // Settings data (from getSettingData)
+         jsonDoc["dualMotorSyncMode"] = dualMotorSyncMode;
+         jsonDoc["minAutoValueA"] = minAutoValueA;
+         jsonDoc["maxAutoValueA"] = maxAutoValueA;
+         jsonDoc["lowerThresholdA"] = lowerTankLowerThresholdLevelA;
+         jsonDoc["lowerOverflowA"] = lowerTankOverFlowThresholdLevelA;
+         jsonDoc["minAutoValueB"] = minAutoValueB;
+         jsonDoc["maxAutoValueB"] = maxAutoValueB;
+         jsonDoc["lowerThresholdB"] = lowerTankLowerThresholdLevelB;
+         jsonDoc["lowerOverflowB"] = lowerTankOverFlowThresholdLevelB;
+         jsonDoc["tankAAutomationEnabled"] = tankAAutomationEnabled;
+         jsonDoc["tankBAutomationEnabled"] = tankBAutomationEnabled;
+         
+         // Tank dimensions
+         jsonDoc["upperTankHeightA"] = upperTankHeightA;
+         jsonDoc["upperWaterFullHeightA"] = upperWaterFullHeightA;
+         jsonDoc["upperWaterEmptyHeightA"] = upperWaterEmptyHeightA;
+         jsonDoc["upperTankHeightB"] = upperTankHeightB;
+         jsonDoc["upperWaterFullHeightB"] = upperWaterFullHeightB;
+         jsonDoc["upperWaterEmptyHeightB"] = upperWaterEmptyHeightB;
+         jsonDoc["lowerTankHeightA"] = lowerTankHeightA;
+         jsonDoc["lowerWaterFullHeightA"] = lowerWaterFullHeightA;
+         jsonDoc["lowerWaterEmptyHeightA"] = lowerWaterEmptyHeightA;
+         jsonDoc["lowerTankHeightB"] = lowerTankHeightB;
+         jsonDoc["lowerWaterFullHeightB"] = lowerWaterFullHeightB;
+         jsonDoc["lowerWaterEmptyHeightB"] = lowerWaterEmptyHeightB;
+         
+         // Sensor calibration
+         jsonDoc["upperSensorOffsetA"] = upperSensorOffsetA;
+         jsonDoc["lowerSensorOffsetA"] = lowerSensorOffsetA;
+         jsonDoc["upperSensorOffsetB"] = upperSensorOffsetB;
+         jsonDoc["lowerSensorOffsetB"] = lowerSensorOffsetB;
+         
+         // Sensor limits
+         jsonDoc["minSensorReading"] = minSensorReading;
+         jsonDoc["maxSensorReading"] = maxSensorReading;
+         
+         // Special functions
+         jsonDoc["upperTankOverFlowLock"] = upperTankOverFlowLock;
+         jsonDoc["lowerTankOverFlowLock"] = lowerTankOverFlowLock;
+         jsonDoc["syncBothTank"] = syncBothTank;
+         jsonDoc["buzzerAlert"] = buzzerAlert;
+         
+         // MAC address
+         uint8_t mac[6];
+         WiFi.macAddress(mac);
+         JsonArray macArray = jsonDoc["macAddress"].to<JsonArray>();
+         for (int i = 0; i < 6; i++) {
+           macArray.add(mac[i]);
+         }
+         
+         String jsonString;
+         serializeJson(jsonDoc, jsonString);
+         webSocket.sendTXT(client_num, jsonString);
+         Serial.println("All data sent");
+         
        } else if (strcmp((char *)payload, "getSensorData") == 0) {
          // Send raw sensor data
          JsonDocument jsonDoc;
@@ -1859,23 +2052,23 @@ void handleWiFiConfigUpdate(JsonDocument& doc) {
  }
  
  void espNowAndLowerTankSensorsTaskFunction(void *pvParameters) {
-   Serial.printf("ESP-NOW and Sensors Task started on core %d\n", xPortGetCoreID());
- 
-   // Init ESP-NOW
-   if (esp_now_init() != ESP_OK) {
-     Serial.println("ESP-NOW initialization failed");
-     doFaultAlert(3, 500, 200);
-     vTaskDelete(NULL);
-     return;
-   }
- 
-   esp_err_t result = esp_now_register_recv_cb(OnDataRecv);
-   if (result == ESP_OK) {
-     Serial.println("ESP-NOW initialized successfully");
-   } else {
-     Serial.printf("ESP-NOW callback registration failed: %d\n", result);
-     doFaultAlert(2, 1000, 200);
-   }
+   Serial.print("Task2 running on core ");
+   Serial.println(xPortGetCoreID());
+
+  // Init ESP-NOW
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("Error initializing ESP-NOW");
+    return;
+  }
+
+  uint8_t error = esp_now_register_recv_cb(OnDataRecv);
+  if (error == ESP_OK) {
+    Serial.println("ESP Now Initiated Successfully.");
+  } else {
+    Serial.print("ESP Now Initiated Failed: ");
+    Serial.println(error);
+    doFaultAlert(1, 1000, 200);
+  }
  
    for (;;) {
      if (lowerSensorAEnable) {
@@ -2400,7 +2593,7 @@ void countTaskFunction(void *pvParameters) {
 } else if (wifiMode == "AP") {
 Serial.println("\n>>> Starting Access Point Mode <<<");
 
-WiFi.mode(WIFI_AP);
+WiFi.mode(WIFI_MODE_APSTA);
 WiFi.persistent(false);
 
 // Start AP
@@ -2503,7 +2696,7 @@ delay(1000);
  
    xTaskCreatePinnedToCore(
      espNowAndLowerTankSensorsTaskFunction,
-     "SensorsESPNOW",
+     "Task2",
      5000,
      NULL,
      1,
@@ -2536,6 +2729,9 @@ delay(1000);
    
    Serial.println("=================================\n");
    
+   // Print Channel Auto-Discovery status
+   printChannelAutoDiscoveryStatus();
+   
    digitalWrite(statusPin, HIGH);
    doBuzzerAlert(1, 200, 100);
  }
@@ -2547,6 +2743,7 @@ delay(1000);
    
    // Enhanced WiFi monitoring and reconnection
    static unsigned long lastWiFiCheck = 0;
+   static unsigned long lastChannelStatusCheck = 0;
    if (millis() - lastWiFiCheck > 5000) { // Check every 5 seconds
      lastWiFiCheck = millis();
      
@@ -2566,6 +2763,17 @@ delay(1000);
        Serial.println("WiFi: Connection lost, triggering reconnection...");
        wifiConnected = false;
        handleWiFiDisconnection();
+     }
+   }
+   
+   // Channel Auto-Discovery status monitoring
+   if (millis() - lastChannelStatusCheck > 30000) { // Check every 30 seconds
+     lastChannelStatusCheck = millis();
+     if (transmitterRegistered) {
+       Serial.printf("Channel Auto-Discovery: Active on channel %d, %lu ACKs sent\n", 
+                     currentChannel, ackCount);
+     } else {
+       Serial.println("Channel Auto-Discovery: Waiting for transmitter...");
      }
    }
    

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useWebSocket } from '../context/useWebSocket';
 
@@ -7,6 +7,7 @@ export const usePageData = () => {
   const { sendMessage, isConnected } = useWebSocket();
   const hasLoadedInitialData = useRef(false);
   const dashboardIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const sendMessageRef = useRef(sendMessage);
 
   // Get dashboard sync interval from localStorage
   const getDashboardSyncInterval = () => {
@@ -14,8 +15,13 @@ export const usePageData = () => {
     return saved ? parseInt(saved, 10) : 5000; // Default 5 seconds
   };
 
+  // Update sendMessage ref when it changes
+  useEffect(() => {
+    sendMessageRef.current = sendMessage;
+  }, [sendMessage]);
+
   // Start dashboard periodic data fetching
-  const startDashboardSync = () => {
+  const startDashboardSync = useCallback(() => {
     if (dashboardIntervalRef.current) {
       clearInterval(dashboardIntervalRef.current);
     }
@@ -23,24 +29,23 @@ export const usePageData = () => {
     const interval = getDashboardSyncInterval();
     if (isConnected && interval > 0) {
       dashboardIntervalRef.current = setInterval(() => {
-        sendMessage({ type: 'getHomeData' });
+        sendMessageRef.current({ type: 'getAllData' });
       }, interval);
     }
-  };
+  }, [isConnected]);
 
   // Stop dashboard periodic data fetching
-  const stopDashboardSync = () => {
+  const stopDashboardSync = useCallback(() => {
     if (dashboardIntervalRef.current) {
       clearInterval(dashboardIntervalRef.current);
       dashboardIntervalRef.current = null;
     }
-  };
+  }, []);
 
   // Handle page-specific data loading
   useEffect(() => {
     if (!isConnected) {
       stopDashboardSync();
-      hasLoadedInitialData.current = false;
       return;
     }
 
@@ -49,21 +54,20 @@ export const usePageData = () => {
     if (currentPath === '/dashboard') {
       // Dashboard page - load initial data and start periodic sync
       if (!hasLoadedInitialData.current) {
-        sendMessage({ type: 'getHomeData' });
+        sendMessageRef.current({ type: 'getAllData' });
         hasLoadedInitialData.current = true;
       }
       startDashboardSync();
     } else if (currentPath === '/settings') {
-      // Settings page - load settings data once only
+      // Settings page - load all data once only (includes settings and current status)
       stopDashboardSync();
       if (!hasLoadedInitialData.current) {
-        sendMessage({ type: 'getSettingData' });
+        sendMessageRef.current({ type: 'getAllData' });
         hasLoadedInitialData.current = true;
       }
     } else {
       // Other pages - stop all data fetching
       stopDashboardSync();
-      hasLoadedInitialData.current = false;
     }
 
     // Cleanup on unmount or path change
@@ -72,14 +76,19 @@ export const usePageData = () => {
         stopDashboardSync();
       }
     };
-  }, [location.pathname, isConnected, sendMessage]);
+  }, [location.pathname, isConnected, startDashboardSync, stopDashboardSync]);
+
+  // Reset hasLoadedInitialData when path changes
+  useEffect(() => {
+    hasLoadedInitialData.current = false;
+  }, [location.pathname]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       stopDashboardSync();
     };
-  }, []);
+  }, [stopDashboardSync]);
 
   return {
     startDashboardSync,
