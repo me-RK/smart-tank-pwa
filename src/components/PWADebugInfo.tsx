@@ -49,7 +49,7 @@ export const PWADebugInfo: React.FC = () => {
   });
 
   useEffect(() => {
-    const checkPWARequirements = (): PWADebugInfo => {
+    const checkPWARequirements = (): void => {
       const info: PWADebugInfo = {
         // Basic PWA requirements
         hasServiceWorker: 'serviceWorker' in navigator,
@@ -73,7 +73,7 @@ export const PWADebugInfo: React.FC = () => {
         serviceWorkerRegistered: false,
         
         // Manifest info
-        manifestUrl: document.querySelector('link[rel="manifest"]')?.getAttribute('href'),
+        manifestUrl: document.querySelector('link[rel="manifest"]')?.getAttribute('href') || null,
         
         // URL info
         protocol: location.protocol,
