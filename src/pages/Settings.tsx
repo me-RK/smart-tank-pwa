@@ -7,6 +7,7 @@ import { ToggleSwitch } from '../components/ToggleSwitch';
 import { SensorCheckbox } from '../components/SensorCheckbox';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { PWAInstallButton } from '../components/PWAInstallButton';
+import { PWADebugInfo } from '../components/PWADebugInfo';
 import { ArrowLeft, Save, RotateCcw, AlertCircle, CheckCircle, Wifi, Settings as SettingsIcon, Monitor, Palette } from 'lucide-react';
 
 export const Settings: React.FC = () => {
@@ -1281,6 +1282,11 @@ export const Settings: React.FC = () => {
               {hasChanges ? 'You have unsaved changes' : 'All changes saved'}
             </div>
           </div>
+        </div>
+
+        {/* PWA Debug Information */}
+        <div className="mt-8">
+          <PWADebugInfo />
         </div>
       </main>
     </div>

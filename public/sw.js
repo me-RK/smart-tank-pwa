@@ -11,6 +11,10 @@ const STATIC_ASSETS = [
   '/settings',
   '/manifest.json',
   '/icon.svg',
+  '/icon-16.svg',
+  '/icon-32.svg',
+  '/icon-192.svg',
+  '/icon-512.svg',
   '/vite.svg'
 ];
 

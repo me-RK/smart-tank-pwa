@@ -1,13 +1,13 @@
 {
   "name": "Smart Water Tank Monitor",
   "short_name": "WaterTank",
-  "start_url": "/smart-tank-pwa/",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#3b82f6",
   "description": "A Progressive Web App for monitoring smart water tank levels with real-time WebSocket connectivity",
   "orientation": "portrait-primary",
-  "scope": "/smart-tank-pwa/",
+  "scope": "/",
   "lang": "en",
   "categories": ["utilities", "productivity"],
   "prefer_related_applications": false,
@@ -57,10 +57,10 @@
       "name": "Dashboard",
       "short_name": "Dashboard",
       "description": "View tank levels and system status",
-      "url": "/smart-tank-pwa/dashboard",
+      "url": "/dashboard",
       "icons": [
         {
-          "src": "/smart-tank-pwa/icon.svg",
+          "src": "/icon.svg",
           "sizes": "192x192"
         }
       ]
@@ -69,10 +69,10 @@
       "name": "Settings",
       "short_name": "Settings",
       "description": "Configure system settings",
-      "url": "/smart-tank-pwa/settings",
+      "url": "/settings",
       "icons": [
         {
-          "src": "/smart-tank-pwa/icon.svg",
+          "src": "/icon.svg",
           "sizes": "192x192"
         }
       ]
@@ -80,14 +80,14 @@
   ],
   "screenshots": [
     {
-      "src": "/smart-tank-pwa/screenshot-dashboard.png",
+      "src": "/screenshot-dashboard.png",
       "sizes": "1280x720",
       "type": "image/png",
       "form_factor": "wide",
       "label": "Dashboard showing tank levels and system status"
     },
     {
-      "src": "/smart-tank-pwa/screenshot-settings.png",
+      "src": "/screenshot-settings.png",
       "sizes": "750x1334",
       "type": "image/png",
       "form_factor": "narrow",

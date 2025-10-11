@@ -27,10 +27,13 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
 
   useEffect(() => {
     // Check if already installed
-    setIsInstalled(isPWA());
+    const installed = isPWA();
+    setIsInstalled(installed);
+    console.log('PWA: Is already installed?', installed);
 
     // Listen for beforeinstallprompt event
     const handleBeforeInstallPrompt = (e: Event) => {
+      console.log('PWA: beforeinstallprompt event received');
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
       setIsInstallable(true);
@@ -38,10 +41,10 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
 
     // Listen for appinstalled event
     const handleAppInstalled = () => {
+      console.log('PWA: appinstalled event received');
       setIsInstalled(true);
       setIsInstallable(false);
       setDeferredPrompt(null);
-      console.log('PWA was installed');
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -51,9 +54,24 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
     const isInStandaloneMode = window.matchMedia('(display-mode: standalone)').matches;
     
+    console.log('PWA: Device info', { isIOS, isInStandaloneMode, userAgent: navigator.userAgent });
+    
     if (isIOS && !isInStandaloneMode) {
+      console.log('PWA: iOS device detected, showing install button');
       setIsInstallable(true);
     }
+
+    // Check PWA criteria
+    const hasServiceWorker = 'serviceWorker' in navigator;
+    const hasManifest = document.querySelector('link[rel="manifest"]') !== null;
+    const isHTTPS = location.protocol === 'https:' || location.hostname === 'localhost';
+    
+    console.log('PWA: Requirements check', { 
+      hasServiceWorker, 
+      hasManifest, 
+      isHTTPS,
+      isInstallable: !installed && (hasServiceWorker && hasManifest && isHTTPS)
+    });
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -62,24 +80,32 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
   }, []);
 
   const handleInstallClick = async () => {
-    if (deferredPrompt) {
-      // Show the install prompt
-      deferredPrompt.prompt();
-      
-      // Wait for the user to respond to the prompt
-      const { outcome } = await deferredPrompt.userChoice;
-      
-      if (outcome === 'accepted') {
-        console.log('User accepted the install prompt');
+    try {
+      if (deferredPrompt) {
+        console.log('PWA: Showing install prompt...');
+        
+        // Show the install prompt
+        await deferredPrompt.prompt();
+        
+        // Wait for the user to respond to the prompt
+        const { outcome } = await deferredPrompt.userChoice;
+        
+        if (outcome === 'accepted') {
+          console.log('PWA: User accepted the install prompt');
+          // The appinstalled event will handle the state update
+        } else {
+          console.log('PWA: User dismissed the install prompt');
+          // Clear the deferredPrompt but keep installable true for future attempts
+          setDeferredPrompt(null);
+        }
       } else {
-        console.log('User dismissed the install prompt');
+        // iOS - show instructions
+        console.log('PWA: Showing iOS instructions');
+        setShowIOSInstructions(true);
       }
-      
-      // Clear the deferredPrompt
-      setDeferredPrompt(null);
-      setIsInstallable(false);
-    } else {
-      // iOS - show instructions
+    } catch (error) {
+      console.error('PWA: Install prompt failed:', error);
+      // Fallback to iOS instructions if prompt fails
       setShowIOSInstructions(true);
     }
   };
@@ -90,13 +116,17 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
 
   // Don't show if already installed
   if (isInstalled) {
+    console.log('PWA: Not showing install button - already installed');
     return null;
   }
 
   // Don't show if not installable
   if (!isInstallable) {
+    console.log('PWA: Not showing install button - not installable');
     return null;
   }
+
+  console.log('PWA: Showing install button', { deferredPrompt: !!deferredPrompt, isInstallable });
 
   return (
     <>
