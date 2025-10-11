@@ -21,8 +21,24 @@
 }
 
 /* Dark theme colors */
+.dark {
+  --color-primary: #60a5fa;
+  --color-primary-dark: #3b82f6;
+  --color-secondary: #94a3b8;
+  --color-success: #34d399;
+  --color-warning: #fbbf24;
+  --color-error: #f87171;
+  --color-background: #0f172a;
+  --color-surface: #1e293b;
+  --color-text: #f1f5f9;
+  --color-text-muted: #94a3b8;
+  --color-border: #334155;
+  --color-shadow: rgba(0, 0, 0, 0.3);
+}
+
+/* System preference fallback */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not(.light) {
     --color-primary: #60a5fa;
     --color-primary-dark: #3b82f6;
     --color-secondary: #94a3b8;
@@ -80,16 +96,29 @@ body {
 }
 
 /* Dark mode scrollbar */
+.dark ::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* System preference fallback for scrollbar */
 @media (prefers-color-scheme: dark) {
-  ::-webkit-scrollbar-track {
+  :root:not(.light) ::-webkit-scrollbar-track {
     background: #1e293b;
   }
   
-  ::-webkit-scrollbar-thumb {
+  :root:not(.light) ::-webkit-scrollbar-thumb {
     background: #475569;
   }
   
-  ::-webkit-scrollbar-thumb:hover {
+  :root:not(.light) ::-webkit-scrollbar-thumb:hover {
     background: #64748b;
   }
 }

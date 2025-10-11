@@ -2,13 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWebSocket } from '../context/useWebSocket';
 import { usePageData } from '../hooks/usePageData';
+import { useTheme } from '../context/ThemeContext';
 import { ToggleSwitch } from '../components/ToggleSwitch';
 import { SensorCheckbox } from '../components/SensorCheckbox';
-import { ArrowLeft, Save, RotateCcw, AlertCircle, CheckCircle, Wifi, Settings as SettingsIcon, Monitor } from 'lucide-react';
+import { ThemeToggle } from '../components/ThemeToggle';
+import { ArrowLeft, Save, RotateCcw, AlertCircle, CheckCircle, Wifi, Settings as SettingsIcon, Monitor, Palette } from 'lucide-react';
 
 export const Settings: React.FC = () => {
   const navigate = useNavigate();
   const { appState, sendMessage, isConnected } = useWebSocket();
+  const { theme, setTheme } = useTheme();
   usePageData(); // Initialize page-specific data loading
   const [settings, setSettings] = useState(appState.systemSettings);
   const [hasChanges, setHasChanges] = useState(false);
@@ -145,6 +148,7 @@ export const Settings: React.FC = () => {
                   Unsaved changes
                 </span>
               )}
+              <ThemeToggle />
               <button
                 onClick={handleSave}
                 disabled={!hasChanges || isSaving || !isConnected}
@@ -1089,6 +1093,83 @@ export const Settings: React.FC = () => {
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                   How often the dashboard automatically refreshes data from the ESP32. This setting is stored locally and not sent to the device.
                 </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Theme Settings */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+            <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4 flex items-center space-x-2">
+              <Palette className="w-5 h-5" />
+              <span>Theme Settings</span>
+            </h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                  Choose your preferred theme
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <button
+                    onClick={() => setTheme('light')}
+                    className={`
+                      p-4 rounded-lg border-2 transition-all duration-200
+                      ${theme === 'light' 
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' 
+                        : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
+                      }
+                    `}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="w-4 h-4 bg-yellow-400 rounded-full"></div>
+                      <div>
+                        <div className="font-medium text-gray-800 dark:text-gray-200">Light</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Always light mode</div>
+                      </div>
+                    </div>
+                  </button>
+                  
+                  <button
+                    onClick={() => setTheme('dark')}
+                    className={`
+                      p-4 rounded-lg border-2 transition-all duration-200
+                      ${theme === 'dark' 
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' 
+                        : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
+                      }
+                    `}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="w-4 h-4 bg-gray-600 rounded-full"></div>
+                      <div>
+                        <div className="font-medium text-gray-800 dark:text-gray-200">Dark</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Always dark mode</div>
+                      </div>
+                    </div>
+                  </button>
+                  
+                  <button
+                    onClick={() => setTheme('system')}
+                    className={`
+                      p-4 rounded-lg border-2 transition-all duration-200
+                      ${theme === 'system' 
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' 
+                        : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
+                      }
+                    `}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <Monitor className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                      <div>
+                        <div className="font-medium text-gray-800 dark:text-gray-200">System</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Follow system preference</div>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+              
+              <div className="text-sm text-gray-500 dark:text-gray-400">
+                Current theme: <span className="font-medium capitalize">{theme}</span>
               </div>
             </div>
           </div>

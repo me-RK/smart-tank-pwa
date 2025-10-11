@@ -5,6 +5,7 @@ import { usePageData } from '../hooks/usePageData';
 import { StatusCard } from '../components/StatusCard';
 import { IndividualTankCard } from '../components/IndividualTankCard';
 import { AnimatedCard, FadeIn, SlideIn } from '../components/AnimatedCard';
+import { ThemeToggle } from '../components/ThemeToggle';
 import { Settings, Wifi, WifiOff, RefreshCw, Loader2, WifiIcon } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
@@ -228,6 +229,9 @@ export const Dashboard: React.FC = () => {
               </div>
 
 
+
+              {/* Theme Toggle */}
+              <ThemeToggle />
 
               {/* Settings Button */}
               <button

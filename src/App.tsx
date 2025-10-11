@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
 import { WebSocketProvider } from './context/WebSocketContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { ConnectionGuard } from './components/ConnectionGuard';
 import { DataLoader } from './components/DataLoader';
 import { LoadingSpinner } from './components/LoadingSpinner';
@@ -15,25 +16,27 @@ const Settings = lazy(() => import('./pages/Settings').then(module => ({ default
 function App() {
   return (
     <ErrorBoundary>
-      <NotificationProvider>
-        <WebSocketProvider>
-          <Router basename="/smart-tank-pwa">
-            <div className="App">
-              <ConnectionGuard>
-                <DataLoader>
-                  <Suspense fallback={<LoadingSpinner />}>
-                    <Routes>
-                      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                      <Route path="/dashboard" element={<Dashboard />} />
-                      <Route path="/settings" element={<Settings />} />
-                    </Routes>
-                  </Suspense>
-                </DataLoader>
-              </ConnectionGuard>
-            </div>
-          </Router>
-        </WebSocketProvider>
-      </NotificationProvider>
+      <ThemeProvider>
+        <NotificationProvider>
+          <WebSocketProvider>
+            <Router basename="/smart-tank-pwa">
+              <div className="App">
+                <ConnectionGuard>
+                  <DataLoader>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <Routes>
+                        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                        <Route path="/dashboard" element={<Dashboard />} />
+                        <Route path="/settings" element={<Settings />} />
+                      </Routes>
+                    </Suspense>
+                  </DataLoader>
+                </ConnectionGuard>
+              </div>
+            </Router>
+          </WebSocketProvider>
+        </NotificationProvider>
+      </ThemeProvider>
     </ErrorBoundary>
   );
 }

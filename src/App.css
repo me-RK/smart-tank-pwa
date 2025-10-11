@@ -6,8 +6,13 @@
 }
 
 /* Dark mode support */
+.dark .App {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+}
+
+/* System preference fallback */
 @media (prefers-color-scheme: dark) {
-  .App {
+  :root:not(.light) .App {
     background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
   }
 }
@@ -31,16 +36,29 @@
 }
 
 /* Dark mode scrollbar */
+.dark ::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* System preference fallback for scrollbar */
 @media (prefers-color-scheme: dark) {
-  ::-webkit-scrollbar-track {
+  :root:not(.light) ::-webkit-scrollbar-track {
     background: #1e293b;
   }
   
-  ::-webkit-scrollbar-thumb {
+  :root:not(.light) ::-webkit-scrollbar-thumb {
     background: #475569;
   }
   
-  ::-webkit-scrollbar-thumb:hover {
+  :root:not(.light) ::-webkit-scrollbar-thumb:hover {
     background: #64748b;
   }
 }
